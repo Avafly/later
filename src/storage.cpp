@@ -31,7 +31,11 @@ Storage::Storage()
     if (!home)
         throw std::runtime_error("HOME environment variable not set");
 
-    base_dir_ = std::filesystem::path(home) / ".config" / "later";
+    const char *xdg_data = std::getenv("XDG_DATA_HOME");
+    if (xdg_data && xdg_data[0] != '\0')
+        base_dir_ = std::filesystem::path(xdg_data) / "later";
+    else
+        base_dir_ = std::filesystem::path(home) / ".local" / "share" / "later";
     tasks_dir_ = base_dir_ / "tasks";
     logs_dir_ = base_dir_ / "logs";
     locks_dir_ = base_dir_ / "locks";
