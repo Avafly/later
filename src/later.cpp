@@ -42,8 +42,8 @@ int ListTasks(bool verbose = false)
     std::sort(tasks.begin(), tasks.end(), later::TaskSorter);
 
     if (verbose)
-        fmt::println("{:<3} {:<10} {:<20} {:<20} {:<5} {}", "#", "Status", "Created at", "Execute at",
-                     "Cmds", "ID");
+        fmt::println("{:<3} {:<10} {:<20} {:<20} {:<5} {}", "#", "Status", "Created at",
+                     "Execute at", "Cmds", "ID");
     else
         fmt::println("{:<3} {:<10} {:<20} {:<20} {}", "#", "Status", "Created at", "Execute at",
                      "Cmds");
@@ -53,13 +53,14 @@ int ListTasks(bool verbose = false)
         if (verbose)
             fmt::println("{:<3} {:<19} {:<20} {:<20} {:<5} {}", i + 1,
                          later::TaskStatusToString(status, true),
-                         later::FormatTime(tasks[i].created_at), later::FormatTime(tasks[i].execute_at),
-                         tasks[i].commands.size(), tasks[i].id);
+                         later::FormatTime(tasks[i].created_at),
+                         later::FormatTime(tasks[i].execute_at), tasks[i].commands.size(),
+                         tasks[i].id);
         else
             fmt::println("{:<3} {:<19} {:<20} {:<20} {}", i + 1,
                          later::TaskStatusToString(status, true),
-                         later::FormatTime(tasks[i].created_at), later::FormatTime(tasks[i].execute_at),
-                         tasks[i].commands.size());
+                         later::FormatTime(tasks[i].created_at),
+                         later::FormatTime(tasks[i].execute_at), tasks[i].commands.size());
     }
 
     return 0;
@@ -79,17 +80,17 @@ int ShowTask(const std::string &input_id)
     auto task = storage.LoadTask(id);
     if (!task)
     {
-        fmt::println(stderr, "Error: Task not found '{}': {}", id, task.error());
+        fmt::println(stderr, "Error: Task {} not found: {}", id, task.error());
         return 1;
     }
 
     auto status = storage.ResolveTaskStatus(*task);
-
-    auto now = std::chrono::system_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::seconds>(task->execute_at - now);
+    auto duration =
+        std::chrono::duration_cast<std::chrono::seconds>(task->execute_at - task->created_at);
 
     fmt::println("Task: {}", task->id);
     fmt::println("Status:      {}", later::TaskStatusToString(status, true));
+    fmt::println("Created at:  {}", later::FormatTime(task->created_at));
     fmt::println("Execute at:  {} ({})", later::FormatTime(task->execute_at),
                  later::FormatDuration(duration));
     fmt::println("Working dir: {}", task->cwd);
@@ -116,7 +117,7 @@ int CancelTask(const std::string &input_id)
     auto task = storage.LoadTask(id);
     if (!task)
     {
-        fmt::println(stderr, "Error: Task not found '{}': {}", id, task.error());
+        fmt::println(stderr, "Error: Task {} not found: {}", id, task.error());
         return 1;
     }
 
@@ -225,10 +226,9 @@ int CreateTask(std::string_view time_str, bool dry_run)
     // current working directory
     std::string cwd = std::filesystem::current_path().string();
 
-    fmt::println("Current time: {}", later::FormatTime(now));
-    fmt::println("Execute at:   {} ({})", later::FormatTime(execute_at),
+    fmt::println("Execute at:  {} ({})", later::FormatTime(execute_at),
                  later::FormatDuration(duration));
-    fmt::println("Working dir:  {}", cwd);
+    fmt::println("Working dir: {}", cwd);
 
     auto commands = later::ReadCommands();
     if (commands.empty())
@@ -272,7 +272,7 @@ int CreateTask(std::string_view time_str, bool dry_run)
     if (pid > 0)
     {
         // parent process
-        fmt::println("Task created: {}", task.id);
+        fmt::println("Task {} created", task.id);
         return 0;
     }
 
@@ -334,7 +334,7 @@ int DeleteTask(const std::string &input_id)
     auto task = storage.LoadTask(id);
     if (!task)
     {
-        fmt::println(stderr, "Error: Task not found '{}': {}", id, task.error());
+        fmt::println(stderr, "Error: Task {} not found: {}", id, task.error());
         return 1;
     }
 

@@ -16,14 +16,13 @@ I wrote `later` because I often need to run things in the background or schedule
 
   ```bash
   $ later +0m # run commands immediately
-  Current time: 2026-02-13 18:55:56
   Execute at:   2026-02-13 18:55:56 (0s)
-  Working dir:  /Users/user/Downloads/whatever/build
+  Working dir:  /Users/user/whatever/build
   later> cmake ..
   later> make -j`nproc`
   later> make install PREFIX=./install
   later>
-  Task created: 1770976574_95743
+  Task 1770976574_95743 created
   ```
 
 ## How it works
@@ -50,14 +49,13 @@ I wrote `later` because I often need to run things in the background or schedule
 
 ```bash
 $ later +0s
-Current time: 2026-02-12 22:20:56
 Execute at:   2026-02-12 22:20:56 (0s)
 Working dir:  /Users/user/Downloads/build
 later> cmake ../opencv-4.x
 later> make -j4
 later> make install DESTDIR=./install
 later>
-Task created: 1770902509_74290
+Task 1770902509_74290 created
 ```
 
 **Check task**
@@ -71,7 +69,7 @@ $ later -l
 **View progress**
 
 ```bash
-$ later -L 1 | tail -3
+$ later --logs 1 | tail -3
 [  6%] Linking C static library ../lib/libzlib.a
 [  6%] Building C object 3rdparty/openjpeg/openjp2/CMakeFiles/libopenjp2.dir/mqc.c.o
 [  6%] Built target zlib
@@ -82,11 +80,11 @@ $ later -L 1 | tail -3
 ```bash
 $ later -c 1
 Task 1770902509_74290 cancelled
-$ later -L 1 | tail -4
+$ later --logs 1 | tail -4
 make[2]: *** Waiting for unfinished jobs....
 make[2]: *** [3rdparty/libwebp/CMakeFiles/libwebp.dir/all] Terminated: 15
 make: *** [all] Terminated: 15
-Task cancelled by user.
+Task cancelled by user
 ```
 
 ## Dependencies
