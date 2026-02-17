@@ -178,13 +178,13 @@ int Storage::CleanFinishedTasks()
         if (!task)
         {
             // corrupt JSON - delete zombie files
-            to_delete.push_back(id);
+            to_delete.push_back(std::move(id));
             continue;
         }
 
         auto status = ResolveTaskStatus(*task);
         if (IsFinalStatus(status))
-            to_delete.push_back(id);
+            to_delete.push_back(std::move(id));
     }
 
     for (const auto &id : to_delete)

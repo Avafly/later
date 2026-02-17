@@ -1,5 +1,7 @@
 # later
 
+[![Coverity Scan](https://img.shields.io/coverity/scan/32880.svg)](https://scan.coverity.com/projects/later)
+
 A background/delayed command execution tool for Linux and macOS.
 
 I wrote `later` because I often need to run things in the background or schedule them for later, and `at` didn't quite fit my workflow. I wanted a tool that doesn't require a system daemon, and still lets me see and manage tasks throughout their lifecycle.

@@ -252,8 +252,8 @@ int CreateTask(std::string_view time_str, bool dry_run)
     later::Storage storage;
     later::Task task;
     task.id = later::GenerateTaskId();
-    task.cwd = cwd;
-    task.commands = commands;
+    task.cwd = std::move(cwd);
+    task.commands = std::move(commands);
     task.created_at = now;
     task.execute_at = execute_at;
     task.status = later::TaskStatus::Pending;
@@ -353,33 +353,33 @@ int DeleteTask(const std::string &input_id)
 
 int main(int argc, char *argv[])
 {
-    CLI::App app{"later - Schedule commands for later execution"};
-
-    std::string time_str;
-    std::string cancel_id;
-    std::string delete_id;
-    std::string logs_id;
-    std::string show_id;
-    bool list_flag = false;
-    bool clean_flag = false;
-    bool verbose_flag = false;
-    bool dry_run = false;
-
-    app.add_option("time", time_str,
-                   "Time to execute (e.g., 17:30, +30m, +2h, 2024-01-28T17:30:00)");
-    app.add_flag("-l,--list", list_flag, "List all tasks");
-    app.add_option("-s,--show", show_id, "Show details of a task");
-    app.add_option("-c,--cancel", cancel_id, "Cancel a task by ID");
-    app.add_option("-d,--delete", delete_id, "Delete a single task");
-    app.add_option("-L,--logs", logs_id, "Show logs for a task");
-    app.add_flag("-C,--clean", clean_flag, "Clean all finished tasks");
-    app.add_flag("-v,--verbose", verbose_flag, "Show detailed output");
-    app.add_flag("-n,--dry-run", dry_run, "Preview task without creating it");
-
-    CLI11_PARSE(app, argc, argv);
-
     try
     {
+        CLI::App app{"later - Schedule commands for later execution"};
+
+        std::string time_str;
+        std::string cancel_id;
+        std::string delete_id;
+        std::string logs_id;
+        std::string show_id;
+        bool list_flag = false;
+        bool clean_flag = false;
+        bool verbose_flag = false;
+        bool dry_run = false;
+
+        app.add_option("time", time_str,
+                       "Time to execute (e.g., 17:30, +30m, +2h, 2024-01-28T17:30:00)");
+        app.add_flag("-l,--list", list_flag, "List all tasks");
+        app.add_option("-s,--show", show_id, "Show details of a task");
+        app.add_option("-c,--cancel", cancel_id, "Cancel a task by ID");
+        app.add_option("-d,--delete", delete_id, "Delete a single task");
+        app.add_option("-L,--logs", logs_id, "Show logs for a task");
+        app.add_flag("-C,--clean", clean_flag, "Clean all finished tasks");
+        app.add_flag("-v,--verbose", verbose_flag, "Show detailed output");
+        app.add_flag("-n,--dry-run", dry_run, "Preview task without creating it");
+
+        CLI11_PARSE(app, argc, argv);
+
         if (list_flag)
             return ListTasks(verbose_flag);
         if (!show_id.empty())
@@ -401,7 +401,7 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception &e)
     {
-        fmt::println(stderr, "Error: {}", e.what());
+        std::fprintf(stderr, "Error: %s\n", e.what());
         return 1;
     }
 }
