@@ -183,7 +183,7 @@ int ShowLogs(const std::string &input_id)
 
     if (!std::filesystem::exists(log_path))
     {
-        fmt::println(stderr, "Error: Log file not found for task '{}'", id);
+        fmt::println(stderr, "Error: Log file not found for task {}", id);
         return 1;
     }
 
@@ -209,7 +209,8 @@ int CleanTasks()
     return 0;
 }
 
-int CreateTask(std::string_view time_str, bool dry_run)
+int CreateTask(std::string_view time_str, bool dry_run,
+               std::vector<std::string> retry_commands = {})
 {
     // parse time
     auto time_result = later::ParseTime(time_str);
@@ -230,11 +231,22 @@ int CreateTask(std::string_view time_str, bool dry_run)
                  later::FormatDuration(duration));
     fmt::println("Working dir: {}", cwd);
 
-    auto commands = later::ReadCommands();
-    if (commands.empty())
+    std::vector<std::string> commands;
+    if (!retry_commands.empty())
     {
-        fmt::println(stderr, "Error: No commands provided");
-        return 1;
+        commands = std::move(retry_commands);
+        fmt::println("Commands:");
+        for (size_t i = 0; i < commands.size(); ++i)
+            fmt::println("  {}. {}", i + 1, commands[i]);
+    }
+    else
+    {
+        commands = later::ReadCommands();
+        if (commands.empty())
+        {
+            fmt::println(stderr, "Error: No commands provided");
+            return 1;
+        }
     }
 
     // dry run mode - just show what would happen
@@ -351,6 +363,33 @@ int DeleteTask(const std::string &input_id)
     return 0;
 }
 
+int RetryTask(const std::string &input_id, std::string_view time_str, bool dry_run)
+{
+    if (time_str.empty())
+    {
+        fmt::println(stderr, "Error: --retry requires a time argument (e.g., later -r {} +0s)",
+                     input_id);
+        return 1;
+    }
+
+    auto id_opt = later::ResolveTaskId(input_id);
+    if (!id_opt)
+    {
+        fmt::println(stderr, "Error: Task not found or ambiguous '{}'", input_id);
+        return 1;
+    }
+
+    later::Storage storage;
+    auto task = storage.LoadTask(*id_opt);
+    if (!task)
+    {
+        fmt::println(stderr, "Error: Task {} not found: {}", *id_opt, task.error());
+        return 1;
+    }
+
+    return CreateTask(time_str, dry_run, task->commands);
+}
+
 int main(int argc, char *argv[])
 {
     try
@@ -362,6 +401,7 @@ int main(int argc, char *argv[])
         std::string delete_id;
         std::string logs_id;
         std::string show_id;
+        std::string retry_id;
         bool list_flag = false;
         bool clean_flag = false;
         bool verbose_flag = false;
@@ -374,6 +414,7 @@ int main(int argc, char *argv[])
         app.add_option("-c,--cancel", cancel_id, "Cancel a task by ID");
         app.add_option("-d,--delete", delete_id, "Delete a single task");
         app.add_option("-L,--logs", logs_id, "Show logs for a task");
+        app.add_option("-r,--retry", retry_id, "Retry commands from a previous task");
         app.add_flag("-C,--clean", clean_flag, "Clean all finished tasks");
         app.add_flag("-v,--verbose", verbose_flag, "Show detailed output");
         app.add_flag("-n,--dry-run", dry_run, "Preview task without creating it");
@@ -392,6 +433,8 @@ int main(int argc, char *argv[])
             return ShowLogs(logs_id);
         if (clean_flag)
             return CleanTasks();
+        if (!retry_id.empty())
+            return RetryTask(retry_id, time_str, dry_run);
         if (!time_str.empty())
             return CreateTask(time_str, dry_run);
 
