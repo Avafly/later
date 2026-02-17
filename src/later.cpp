@@ -408,7 +408,7 @@ int main(int argc, char *argv[])
         bool dry_run = false;
 
         app.add_option("time", time_str,
-                       "Time to execute (e.g., 17:30, +30m, +2h, 2024-01-28T17:30:00)");
+                       "Time to execute (e.g., 17:30, +30m, +2h, +1d, 2024-01-28T17:30:00)");
         app.add_flag("-l,--list", list_flag, "List all tasks");
         app.add_option("-s,--show", show_id, "Show details of a task");
         app.add_option("-c,--cancel", cancel_id, "Cancel a task by ID");
