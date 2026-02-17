@@ -16,31 +16,34 @@ namespace later
 namespace
 {
 
-// parse relative time: +30m, +2h, +1h30m, +0m
+// parse relative time: +1d, +2h, +30m, +1h30m, +1d12h, +0s
 tl::expected<std::chrono::seconds, std::string> ParseRelativeTime(std::string_view input)
 {
     if (input.empty() || input.front() != '+')
         return tl::unexpected("Relative time must start with '+'");
 
     std::string str(input.substr(1));
-    static const std::regex pattern(R"(^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$)");
+    static const std::regex pattern(R"(^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$)");
     std::smatch match;
 
     if (!std::regex_match(str, match, pattern) || match[0].str().empty())
         return tl::unexpected(fmt::format("Invalid relative time format: {}", input));
 
+    int days = 0;
     int hours = 0;
     int minutes = 0;
     int seconds = 0;
 
     if (match[1].matched)
-        hours = std::stoi(match[1].str());
+        days = std::stoi(match[1].str());
     if (match[2].matched)
-        minutes = std::stoi(match[2].str());
+        hours = std::stoi(match[2].str());
     if (match[3].matched)
-        seconds = std::stoi(match[3].str());
+        minutes = std::stoi(match[3].str());
+    if (match[4].matched)
+        seconds = std::stoi(match[4].str());
 
-    return std::chrono::hours(hours) + std::chrono::minutes(minutes) +
+    return std::chrono::hours(days * 24 + hours) + std::chrono::minutes(minutes) +
            std::chrono::seconds(seconds);
 }
 
