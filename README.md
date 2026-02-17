@@ -14,7 +14,7 @@ I wrote `later` because I often need to run things in the background or schedule
   echo "git push origin main" | later 18:15
   ```
 
-- Run commands in the background as I don't want to open a new terminal:
+- Run commands in the background as I don't want to open a new terminal (check progress by `later --logs`):
 
   ```bash
   $ later +0m # run commands immediately
