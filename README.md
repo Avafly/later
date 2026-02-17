@@ -44,14 +44,15 @@ I wrote `later` because I often need to run things in the background or schedule
 | Cancellation | Cancel pending and running tasks | Cancel pending tasks only |
 | Task visibility | Full lifecycle status (Running, Failed, etc.) | Pending tasks only |
 | Input | Pipe or interactive | Pipe or interactive |
+| Extras | `--retry`, `--dry-run`, `--cleanup`, ... | — |
 
 ## Examples
 
 **Background build**
 
 ```bash
-$ later +0s
-Execute at:   2026-02-12 22:20:56 (0s)
+$ later +1m
+Execute at:   2026-02-12 22:20:56 (1m)
 Working dir:  /Users/user/Downloads/build
 later> cmake ../opencv-4.x
 later> make -j4
@@ -65,7 +66,7 @@ Task 1770902509_74290 created
 ```bash
 $ later -l
     Status     Created at           Execute at           Cmds
-1   running    2026-02-12 22:20:56  2026-02-12 22:20:56  3
+1   running    2026-02-12 22:19:56  2026-02-12 22:20:56  3
 ```
 
 **View progress**
@@ -87,6 +88,19 @@ make[2]: *** Waiting for unfinished jobs....
 make[2]: *** [3rdparty/libwebp/CMakeFiles/libwebp.dir/all] Terminated: 15
 make: *** [all] Terminated: 15
 Task cancelled by user
+```
+
+**Retry task**
+
+```bash
+$ later -r 1 +0s
+Execute at:  2026-02-17 22:26:43 (0s)
+Working dir: /Users/user/projects/build
+Commands:
+  1. cmake ../opencv-4.x
+  2. make -j4
+  3. make install DESTDIR=./install
+Task 1771334803_35103 created
 ```
 
 ## Dependencies
