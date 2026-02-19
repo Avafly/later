@@ -90,13 +90,12 @@ std::vector<std::string> ReadCommands()
             break;
         if (line[0] == '\0')
         {
-            std::free(line);
+            linenoiseFree(line);
             break;
         }
         linenoiseHistoryAdd(line);
         commands.emplace_back(line);
-        if (line)
-            std::free(line);
+        linenoiseFree(line);
     }
 
     return commands;
