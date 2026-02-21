@@ -13,11 +13,131 @@
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <optional>
 #include <string>
+#include <system_error>
+#include <vector>
 
 namespace later
 {
+
+namespace
+{
+
+std::string UnescapePath(const std::string &path)
+{
+    std::string result;
+    for (size_t i = 0; i < path.length(); ++i)
+    {
+        if (path[i] == '\\' && i + 1 < path.length() && path[i + 1] == ' ')
+        {
+            result += ' ';
+            ++i;
+        }
+        else
+        {
+            result += path[i];
+        }
+    }
+    return result;
+}
+
+std::string EscapePath(const std::string &path)
+{
+    std::string result;
+    for (char c : path)
+    {
+        if (c == ' ')
+            result += "\\ ";
+        else
+            result += c;
+    }
+    return result;
+}
+
+void FileCompletion(const char *buf, linenoiseCompletions *lc)
+{
+    std::string line(buf);
+
+    // find the start of the current token being typed
+    size_t token_start = 0;
+    for (size_t i = 0; i < line.length(); ++i)
+    {
+        if (line[i] == ' ' && (i == 0 || line[i - 1] != '\\'))
+            token_start = i + 1;
+    }
+
+    std::string context = line.substr(0, token_start);
+    std::string token = line.substr(token_start);
+
+    // unescape token to get the real path
+    std::string unescaped_token = UnescapePath(token);
+
+    // split into directory and file prefix
+    std::string dir_path = ".";
+    std::string file_prefix = unescaped_token;
+
+    size_t last_slash = unescaped_token.find_last_of('/');
+    if (last_slash != std::string::npos)
+    {
+        dir_path = unescaped_token.substr(0, last_slash == 0 ? 1 : last_slash);
+        file_prefix = unescaped_token.substr(last_slash + 1);
+    }
+    else if (unescaped_token == "~")
+    {
+        dir_path = "~";
+        file_prefix = "";
+    }
+
+    std::string search_dir = dir_path;
+    if (search_dir == "~" || search_dir.starts_with("~/"))
+    {
+        const char *home = std::getenv("HOME");
+        if (home)
+            search_dir.replace(0, 1, home);
+    }
+
+    std::vector<std::string> matches;
+    std::error_code ec;
+
+    for (const auto &entry : std::filesystem::directory_iterator(search_dir, ec))
+    {
+        std::string filename = entry.path().filename().string();
+
+        if (filename.starts_with('.') && !file_prefix.starts_with('.'))
+            continue;
+
+        // check if filename starts with the prefix
+        if (filename.starts_with(file_prefix))
+        {
+            std::string match = filename;
+            if (entry.is_directory(ec))
+                match += "/";
+            matches.emplace_back(std::move(match));
+        }
+    }
+
+    std::sort(matches.begin(), matches.end());
+
+    for (const auto &match : matches)
+    {
+        std::string completion = context;
+        if (last_slash != std::string::npos)
+            completion += token.substr(0, token.find_last_of('/') + 1);
+        else if (unescaped_token == "~")
+            completion += "~/";
+
+        completion += EscapePath(match);
+
+        if (matches.size() == 1 && completion.back() != '/')
+            completion += " ";
+
+        linenoiseAddCompletion(lc, completion.c_str());
+    }
+}
+
+} // namespace
 
 bool TaskSorter(const Task &a, const Task &b)
 {
@@ -82,6 +202,8 @@ std::optional<std::string> ResolveTaskId(const std::string &id)
 std::vector<std::string> ReadCommands()
 {
     std::vector<std::string> commands;
+
+    linenoiseSetCompletionCallback(FileCompletion);
 
     while (true)
     {
