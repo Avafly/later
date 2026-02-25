@@ -1,6 +1,7 @@
 #include "executor.h"
 
 #include "task.h"
+#include "time_parser.h"
 
 #include "3rdparty/expected.hpp"
 #include "3rdparty/fmt/base.h"
@@ -9,6 +10,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -83,7 +85,9 @@ tl::expected<int, std::string> ExecuteCommands(const Task &task)
     {
         const auto &cmd = task.commands[i];
 
-        fmt::println("[{}/{}] Executing: {}", i + 1, task.commands.size(), cmd);
+        auto start_time = std::chrono::system_clock::now();
+        fmt::println("[{}] [{}/{}] {}", FormatTime(start_time), i + 1,
+                     task.commands.size(), cmd);
         std::fflush(stdout);
 
         auto result = RunCommand(cmd, task.cwd);
@@ -101,7 +105,8 @@ tl::expected<int, std::string> ExecuteCommands(const Task &task)
 
     if (exit_code == 0 && !task.commands.empty())
     {
-        fmt::println("All commands completed successfully");
+        fmt::println("[{}] All commands completed successfully",
+                     FormatTime(std::chrono::system_clock::now()));
         std::fflush(stdout);
     }
 
