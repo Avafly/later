@@ -395,6 +395,7 @@ int main(int argc, char *argv[])
     try
     {
         CLI::App app{"later - Schedule commands for later execution"};
+        app.set_version_flag("--version", "later version 0.1.0");
 
         std::string time_str;
         std::string cancel_id;
