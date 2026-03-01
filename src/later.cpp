@@ -42,8 +42,8 @@ int ListTasks(bool verbose = false)
     std::sort(tasks.begin(), tasks.end(), later::TaskSorter);
 
     if (verbose)
-        fmt::println("{:<3} {:<10} {:<20} {:<20} {:<5} {}", "#", "Status", "Created at",
-                     "Execute at", "Cmds", "ID");
+        fmt::println("{:<3} {:<10} {:<20} {:<20} {:<5} {:<20} {}", "#", "Status", "Created at",
+                     "Execute at", "Cmds", "ID", "Preview");
     else
         fmt::println("{:<3} {:<10} {:<20} {:<20} {}", "#", "Status", "Created at", "Execute at",
                      "Cmds");
@@ -51,11 +51,20 @@ int ListTasks(bool verbose = false)
     {
         auto status = storage.ResolveTaskStatus(tasks[i]);
         if (verbose)
-            fmt::println("{:<3} {:<19} {:<20} {:<20} {:<5} {}", i + 1,
+        {
+            std::string cmd;
+            if (!tasks[i].commands.empty())
+            {
+                cmd = tasks[i].commands[0];
+                if (cmd.size() > 20)
+                    cmd = cmd.substr(0, 17) + "...";
+            }
+            fmt::println("{:<3} {:<19} {:<20} {:<20} {:<5} {:<20} {}", i + 1,
                          later::TaskStatusToString(status, true),
                          later::FormatTime(tasks[i].created_at),
                          later::FormatTime(tasks[i].execute_at), tasks[i].commands.size(),
-                         tasks[i].id);
+                         tasks[i].id, cmd);
+        }
         else
             fmt::println("{:<3} {:<19} {:<20} {:<20} {}", i + 1,
                          later::TaskStatusToString(status, true),
