@@ -115,6 +115,15 @@ All 3rdparty libraries are included in `src/3rdparty`. You only need a compiler 
 | [nlohmann/json](https://github.com/nlohmann/json) | 3.12.0 |
 | [antirez/linenoise](https://github.com/antirez/linenoise) | Commit c12b66d |
 
+## Uninstall
+
+Delete the data directory and the executable:
+
+```bash
+rm -rf ~/.local/share/later/
+rm ~/.local/bin/later  # or wherever you installed the binary
+```
+
 ## Tested on
 
 - macOS 15.7.3
