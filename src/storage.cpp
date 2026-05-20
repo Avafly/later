@@ -20,6 +20,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 namespace later
@@ -53,13 +54,34 @@ void Storage::SaveTask(const Task &task)
     auto path = GetTaskPath(task.id);
     std::filesystem::create_directories(path.parent_path());
 
-    std::ofstream file(path);
-    if (!file)
-        throw std::runtime_error(fmt::format("Failed to open task file: {}", path.string()));
+    std::filesystem::path tmp_path = path;
+    tmp_path += fmt::format(".tmp.{}", getpid());
 
-    file << task.ToJson().dump(2);
-    if (!file)
-        throw std::runtime_error(fmt::format("Failed to write task file: {}", path.string()));
+    try
+    {
+        std::ofstream file(tmp_path);
+        if (!file)
+            throw std::runtime_error(
+                fmt::format("Failed to open task file: {}", tmp_path.string()));
+
+        file << task.ToJson().dump(2);
+        if (!file)
+            throw std::runtime_error(
+                fmt::format("Failed to write task file: {}", tmp_path.string()));
+
+        file.close();
+        if (!file)
+            throw std::runtime_error(
+                fmt::format("Failed to close task file: {}", tmp_path.string()));
+
+        std::filesystem::rename(tmp_path, path);
+    }
+    catch (...)
+    {
+        std::error_code ec;
+        std::filesystem::remove(tmp_path, ec);
+        throw;
+    }
 }
 
 tl::expected<Task, std::string> Storage::LoadTask(std::string_view id)
