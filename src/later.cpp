@@ -16,8 +16,10 @@
 #include <cerrno>
 #include <chrono>
 #include <csignal>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -26,6 +28,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 int ListTasks(bool verbose = false)
@@ -177,7 +180,7 @@ int CancelTask(const std::string &input_id)
     return 0;
 }
 
-int ShowLogs(const std::string &input_id)
+int ShowLogs(const std::string &input_id, bool verbose = false)
 {
     auto id_opt = later::ResolveTaskId(input_id);
     if (!id_opt)
@@ -204,8 +207,25 @@ int ShowLogs(const std::string &input_id)
     }
 
     std::string line;
-    while (std::getline(file, line))
-        fmt::println("{}", line);
+    if (verbose)
+    {
+        while (std::getline(file, line))
+            fmt::println("{}", line);
+    }
+    else
+    {
+        constexpr size_t max_log_lines = 100;
+        std::deque<std::string> lines;
+        while (std::getline(file, line))
+        {
+            if (lines.size() == max_log_lines)
+                lines.pop_front();
+            lines.push_back(std::move(line));
+        }
+
+        for (const auto &log_line : lines)
+            fmt::println("{}", log_line);
+    }
 
     return 0;
 }
@@ -440,7 +460,7 @@ int main(int argc, char *argv[])
         if (!delete_id.empty())
             return DeleteTask(delete_id);
         if (!logs_id.empty())
-            return ShowLogs(logs_id);
+            return ShowLogs(logs_id, verbose_flag);
         if (clean_flag)
             return CleanTasks();
         if (!retry_id.empty())
