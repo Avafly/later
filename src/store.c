@@ -1,5 +1,7 @@
 #include "store.h"
 
+#include "util.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -500,49 +502,12 @@ task_status store_resolve_status(const char *id)
 
 /* --- delete --------------------------------------------------------------- */
 
-static int rmrf(const char *path)
-{
-    struct stat st;
-    if (lstat(path, &st) < 0)
-        return (errno == ENOENT) ? 0 : -1;
-
-    if (!S_ISDIR(st.st_mode))
-        return unlink(path);
-
-    DIR *d = opendir(path);
-    if (!d)
-        return -1;
-
-    struct dirent *e;
-    int rc = 0;
-    while ((e = readdir(d)))
-    {
-        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0)
-            continue;
-        char sub[PATH_MAX];
-        if ((size_t)snprintf(sub, sizeof(sub), "%s/%s", path, e->d_name) >= sizeof(sub))
-        {
-            rc = -1;
-            break;
-        }
-        if (rmrf(sub) < 0)
-        {
-            rc = -1;
-            break;
-        }
-    }
-    closedir(d);
-    if (rc == 0)
-        rc = rmdir(path);
-    return rc;
-}
-
 int store_delete(const char *id)
 {
     char dir[PATH_MAX];
     if (store_task_dir(id, dir, sizeof(dir)) < 0)
         return -1;
-    return rmrf(dir);
+    return rm_rf(dir);
 }
 
 /* --- status names --------------------------------------------------------- */
