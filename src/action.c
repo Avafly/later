@@ -206,15 +206,17 @@ int action_list(int verbose)
                     preview[20] = '\0';
                 }
             }
-            /* %-19s on the colored status keeps column alignment by counting
-             * the ANSI escapes; status_name_color outputs 9 extra bytes. */
-            printf("%-3zu %-19s %-20s %-20s %-5zu %-25s %s\n", i + 1, status_name_color(st),
+            /* The color escapes wrap around the padded plain name so the
+             * %-10s width counts only visible characters. */
+            printf("%-3zu %s%-10s%s %-20s %-20s %-5zu %-25s %s\n", i + 1,
+                   status_color_prefix(st), status_name(st), status_color_suffix(),
                    created, scheduled, cmds.len, id, preview);
         }
         else
         {
-            printf("%-3zu %-19s %-20s %-20s %zu\n", i + 1, status_name_color(st), created,
-                   scheduled, cmds.len);
+            printf("%-3zu %s%-10s%s %-20s %-20s %zu\n", i + 1,
+                   status_color_prefix(st), status_name(st), status_color_suffix(),
+                   created, scheduled, cmds.len);
         }
         strvec_free(&cmds);
     }
@@ -244,7 +246,7 @@ int action_show(const char *id_input)
     format_time(meta.created_at, created, sizeof(created));
 
     printf("Task: %s\n", meta.id);
-    printf("Status:      %s\n", status_name_color(st));
+    printf("Status:      %s%s%s\n", status_color_prefix(st), status_name(st), status_color_suffix());
     printf("Created at:  %s\n", created);
     printf("Execute at:  %s (%s)\n", tbuf, dbuf);
     printf("Working dir: %s\n", meta.cwd);

@@ -83,7 +83,11 @@ task_status store_resolve_status(const char *id);
 int store_delete(const char *id);
 
 const char *status_name(task_status s);
-const char *status_name_color(task_status s);
+/* ANSI prefix/suffix — empty strings when stdout isn't a tty so colors
+ * don't leak into piped output. Width control stays with the caller
+ * (e.g. printf("%s%-10s%s", prefix, name, suffix)). */
+const char *status_color_prefix(task_status s);
+const char *status_color_suffix(void);
 int status_is_final(task_status s);
 
 #endif // LATER_STORE_H_

@@ -532,24 +532,39 @@ const char *status_name(task_status s)
     return "unknown";
 }
 
-const char *status_name_color(task_status s)
+static int color_enabled(void)
 {
+    static int cached = -1;
+    if (cached < 0)
+        cached = isatty(STDOUT_FILENO) ? 1 : 0;
+    return cached;
+}
+
+const char *status_color_prefix(task_status s)
+{
+    if (!color_enabled())
+        return "";
     switch (s)
     {
         case STATUS_PENDING:
-            return "\033[33mpending\033[0m";
+            return "\033[33m";
         case STATUS_RUNNING:
-            return "\033[34mrunning\033[0m";
+            return "\033[34m";
         case STATUS_COMPLETED:
-            return "\033[32mcompleted\033[0m";
+            return "\033[32m";
         case STATUS_FAILED:
-            return "\033[31mfailed\033[0m";
+            return "\033[31m";
         case STATUS_CANCELLED:
-            return "\033[90mcancelled\033[0m";
+            return "\033[90m";
         case STATUS_PAUSED:
-            return "\033[36mpaused\033[0m";
+            return "\033[36m";
     }
-    return "unknown";
+    return "";
+}
+
+const char *status_color_suffix(void)
+{
+    return color_enabled() ? "\033[0m" : "";
 }
 
 int status_is_final(task_status s)
