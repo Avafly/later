@@ -318,56 +318,48 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
     free(matches);
 }
 
-static int read_commands_tty(strvec_t *out)
-{
-    linenoiseSetCompletionCallback(completion_cb);
-    while (1)
-    {
-        char *line = linenoise("later> ");
-        if (!line)
-            break;
-        if (line[0] == '\0')
-        {
-            linenoiseFree(line);
-            break;
-        }
-        linenoiseHistoryAdd(line);
-        strvec_push(out, strdup(line));
-        linenoiseFree(line);
-    }
-    return 0;
-}
-
-static int read_commands_pipe(strvec_t *out)
-{
-    char *line = NULL;
-    size_t cap = 0;
-    ssize_t got;
-    while ((got = getline(&line, &cap, stdin)) > 0)
-    {
-        if (line[got - 1] == '\n')
-            line[--got] = '\0';
-        if (got > 0 && line[got - 1] == '\r')
-            line[--got] = '\0';
-        if (got == 0)
-            continue;
-        char *dup = strdup(line);
-        if (!dup)
-        {
-            free(line);
-            return -1;
-        }
-        strvec_push(out, dup);
-    }
-    free(line);
-    return 0;
-}
-
 int read_commands(strvec_t *out)
 {
-    if (isatty(STDIN_FILENO))
-        return read_commands_tty(out);
-    return read_commands_pipe(out);
+    /* linenoise's own non-tty fallback (linenoiseNoTTY) handles piped
+     * input via fgetc, so a single loop covers both. The differences
+     * between tty and pipe modes are minor and stay outside the lib:
+     *   - prompt string and completion callback only make sense on tty;
+     *   - empty Enter ends interactive input but is just a blank line
+     *     when piped;
+     *   - linenoiseNoTTY doesn't strip trailing '\r' from CRLF inputs. */
+    int is_tty = isatty(STDIN_FILENO);
+    const char *prompt = is_tty ? "later> " : "";
+
+    if (is_tty)
+        linenoiseSetCompletionCallback(completion_cb);
+
+    while (1)
+    {
+        char *line = linenoise(prompt);
+        if (!line)
+            break;
+
+        size_t n = strlen(line);
+        if (n > 0 && line[n - 1] == '\r')
+            line[--n] = '\0';
+
+        if (n == 0)
+        {
+            linenoiseFree(line);
+            if (is_tty)
+                break;
+            continue;
+        }
+
+        if (is_tty)
+            linenoiseHistoryAdd(line);
+        char *dup = strdup(line);
+        linenoiseFree(line);
+        if (!dup)
+            return -1;
+        strvec_push(out, dup);
+    }
+    return 0;
 }
 
 int path_join(char *dst, size_t n, const char *a, const char *b)
