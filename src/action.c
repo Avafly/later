@@ -290,24 +290,46 @@ int action_cancel(const char *id_input)
 
     /* Record intent BEFORE signalling: if the daemon dies between SIGTERM
      * and the next observer, the marker still tells us "this was cancelled,
-     * not crashed". */
+     * not crashed". The marker is rolled back if signalling fails so a
+     * future status query doesn't misreport a still-running task as
+     * Cancelled. */
     if (store_create_marker(id, "cancel") < 0)
-        fprintf(stderr, "Warning: failed to write cancel marker for %s\n", id);
-
-    if (meta.daemon_pid > 0)
     {
-        /* SIGCONT first in case the daemon is paused (SIGSTOP'd); a stopped
-         * process can't deliver SIGTERM until it's running again. */
-        kill(-meta.daemon_pid, SIGCONT);
-        if (kill(-meta.daemon_pid, SIGTERM) < 0)
-        {
-            if (errno == ESRCH)
-                printf("Daemon %d already exited\n", meta.daemon_pid);
-            else
-                fprintf(stderr, "Warning: kill pg %d: %s\n", meta.daemon_pid, strerror(errno));
-        }
+        fprintf(stderr, "Error: cannot record cancel intent for %s: %s\n", id, strerror(errno));
+        return 1;
     }
 
+    if (meta.daemon_pid <= 0)
+    {
+        store_marker_remove(id, "cancel");
+        fprintf(stderr, "Error: task %s has no daemon pid recorded\n", id);
+        return 1;
+    }
+
+    /* SIGCONT first in case the daemon is paused (SIGSTOP'd); a stopped
+     * process can't deliver SIGTERM until it's running again. Failure
+     * here is harmless — the daemon may simply not be stopped. */
+    kill(-meta.daemon_pid, SIGCONT);
+
+    if (kill(-meta.daemon_pid, SIGTERM) < 0)
+    {
+        int saved = errno;
+        store_marker_remove(id, "cancel");
+        if (saved == ESRCH)
+        {
+            /* Daemon vanished between our resolve_status and the kill.
+             * Don't leave a misleading cancel marker; let resolve_status
+             * report whatever the daemon actually managed to write. */
+            printf("Daemon %d already exited; nothing to cancel\n", meta.daemon_pid);
+            return 0;
+        }
+        fprintf(stderr, "Error: cannot signal daemon %d: %s\n", meta.daemon_pid, strerror(saved));
+        return 1;
+    }
+
+    /* Cancellation has effectively taken hold — the log note is a
+     * courtesy. Both writers open with O_APPEND so any racing daemon
+     * write stays atomic. */
     char log_path[PATH_MAX];
     if (store_path_in_task(id, "log", log_path, sizeof(log_path)) == 0)
     {
@@ -316,6 +338,10 @@ int action_cancel(const char *id_input)
         {
             fprintf(f, "Task cancelled by user.\n");
             fclose(f);
+        }
+        else
+        {
+            fprintf(stderr, "Warning: cannot append cancel note to log: %s\n", strerror(errno));
         }
     }
 
