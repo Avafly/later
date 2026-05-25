@@ -28,46 +28,19 @@ static int resolve_or_error(const char *input, char *out, size_t n)
     return rc;
 }
 
-int action_create(const char *time_str)
+static void print_task_header(time_t exec_at, time_t now, const char *cwd)
 {
-    if (store_ensure_base() < 0)
-    {
-        fprintf(stderr, "Error: cannot create data dir at %s\n", store_base_dir());
-        return 1;
-    }
-
-    char errbuf[256];
-    time_t exec_at;
-    if (parse_time(time_str, &exec_at, errbuf, sizeof(errbuf)) < 0)
-    {
-        fprintf(stderr, "Error: %s\n", errbuf);
-        return 1;
-    }
-
-    time_t now = time(NULL);
     char tbuf[64], dbuf[64];
     format_time(exec_at, tbuf, sizeof(tbuf));
     format_duration((long)(exec_at - now), dbuf, sizeof(dbuf));
-
-    char cwd[PATH_MAX];
-    if (!getcwd(cwd, sizeof(cwd)))
-    {
-        fprintf(stderr, "Error: getcwd: %s\n", strerror(errno));
-        return 1;
-    }
-
     printf("Execute at:  %s (%s)\n", tbuf, dbuf);
     printf("Working dir: %s\n", cwd);
+}
 
-    strvec cmds;
-    strvec_init(&cmds);
-    if (read_commands(&cmds) < 0 || cmds.len == 0)
-    {
-        fprintf(stderr, "Error: no commands provided\n");
-        strvec_free(&cmds);
-        return 1;
-    }
-
+/* Fork the daemon and wait for its readiness signal. cmds is borrowed.
+ * Returns 0 if the daemon reported success, 1 otherwise. */
+static int spawn_task(time_t exec_at, time_t now, const char *cwd, const strvec *cmds)
+{
     task_meta meta = {0};
     id_generate(meta.id, sizeof(meta.id));
     snprintf(meta.cwd, sizeof(meta.cwd), "%s", cwd);
@@ -79,7 +52,6 @@ int action_create(const char *time_str)
     if (pipe(pipefd) < 0)
     {
         fprintf(stderr, "Error: pipe: %s\n", strerror(errno));
-        strvec_free(&cmds);
         return 1;
     }
 
@@ -96,7 +68,6 @@ int action_create(const char *time_str)
         fprintf(stderr, "Error: fork: %s\n", strerror(errno));
         close(pipefd[0]);
         close(pipefd[1]);
-        strvec_free(&cmds);
         return 1;
     }
 
@@ -104,7 +75,7 @@ int action_create(const char *time_str)
     {
         /* child: become the daemon (never returns) */
         close(pipefd[0]);
-        daemon_run(&meta, cmds.items, cmds.len, pipefd[1]);
+        daemon_run(&meta, cmds->items, cmds->len, pipefd[1]);
     }
 
     /* parent: wait for the daemon to report readiness */
@@ -132,25 +103,59 @@ int action_create(const char *time_str)
      * second fork. By the time we get here that child is already gone, and
      * init reaps the (microsecond-long) zombie when this process exits. */
 
-    int ret;
     if (off > 0 && report[0] == 'k')
     {
         printf("Task %s created\n", meta.id);
-        ret = 0;
+        return 0;
     }
-    else if (off > 0 && report[0] == 'e')
+    if (off > 0 && report[0] == 'e')
     {
         fprintf(stderr, "Error: %s\n", report + 1);
-        ret = 1;
+        return 1;
     }
-    else
+    fprintf(stderr, "Error: daemon failed to start\n");
+    return 1;
+}
+
+int action_create(const char *time_str)
+{
+    if (store_ensure_base() < 0)
     {
-        fprintf(stderr, "Error: daemon failed to start\n");
-        ret = 1;
+        fprintf(stderr, "Error: cannot create data dir at %s\n", store_base_dir());
+        return 1;
     }
 
+    char errbuf[256];
+    time_t exec_at;
+    if (parse_time(time_str, &exec_at, errbuf, sizeof(errbuf)) < 0)
+    {
+        fprintf(stderr, "Error: %s\n", errbuf);
+        return 1;
+    }
+
+    time_t now = time(NULL);
+
+    char cwd[PATH_MAX];
+    if (!getcwd(cwd, sizeof(cwd)))
+    {
+        fprintf(stderr, "Error: getcwd: %s\n", strerror(errno));
+        return 1;
+    }
+
+    print_task_header(exec_at, now, cwd);
+
+    strvec cmds;
+    strvec_init(&cmds);
+    if (read_commands(&cmds) < 0 || cmds.len == 0)
+    {
+        fprintf(stderr, "Error: no commands provided\n");
+        strvec_free(&cmds);
+        return 1;
+    }
+
+    int rc = spawn_task(exec_at, now, cwd, &cmds);
     strvec_free(&cmds);
-    return ret;
+    return rc;
 }
 
 int action_list(int verbose)
@@ -455,4 +460,62 @@ int action_clean(void)
     strvec_free(&list);
     printf("Cleaned %d task(s)\n", n);
     return 0;
+}
+
+int action_retry(const char *id_input, const char *time_str)
+{
+    if (!time_str || !*time_str)
+    {
+        fprintf(stderr,
+                "Error: --retry requires a time argument (e.g., later --retry %s +0s)\n",
+                id_input);
+        return 1;
+    }
+
+    char id[64];
+    if (resolve_or_error(id_input, id, sizeof(id)) < 0)
+        return 1;
+
+    strvec cmds;
+    if (store_read_commands(id, &cmds) < 0 || cmds.len == 0)
+    {
+        fprintf(stderr, "Error: task %s has no commands to retry\n", id);
+        strvec_free(&cmds);
+        return 1;
+    }
+
+    if (store_ensure_base() < 0)
+    {
+        fprintf(stderr, "Error: cannot create data dir at %s\n", store_base_dir());
+        strvec_free(&cmds);
+        return 1;
+    }
+
+    char errbuf[256];
+    time_t exec_at;
+    if (parse_time(time_str, &exec_at, errbuf, sizeof(errbuf)) < 0)
+    {
+        fprintf(stderr, "Error: %s\n", errbuf);
+        strvec_free(&cmds);
+        return 1;
+    }
+
+    time_t now = time(NULL);
+    char cwd[PATH_MAX];
+    if (!getcwd(cwd, sizeof(cwd)))
+    {
+        fprintf(stderr, "Error: getcwd: %s\n", strerror(errno));
+        strvec_free(&cmds);
+        return 1;
+    }
+
+    /* Show the user what they're re-running, since they didn't type it. */
+    print_task_header(exec_at, now, cwd);
+    printf("Commands:\n");
+    for (size_t i = 0; i < cmds.len; ++i)
+        printf("  %zu. %s\n", i + 1, cmds.items[i]);
+
+    int rc = spawn_task(exec_at, now, cwd, &cmds);
+    strvec_free(&cmds);
+    return rc;
 }

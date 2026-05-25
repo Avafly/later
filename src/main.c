@@ -13,6 +13,7 @@ static const char *const usages[] = {
     "later --delete <id>",
     "later --logs <id>",
     "later --clean",
+    "later --retry <id> <time>",
     NULL,
 };
 
@@ -20,7 +21,7 @@ int main(int argc, const char *argv[])
 {
     int list_flag = 0, clean_flag = 0, verbose_flag = 0, version_flag = 0;
     const char *show_id = NULL, *cancel_id = NULL, *delete_id = NULL;
-    const char *logs_id = NULL;
+    const char *logs_id = NULL, *retry_id = NULL;
 
     struct argparse_option options[] = {
         OPT_HELP(),
@@ -30,6 +31,7 @@ int main(int argc, const char *argv[])
         OPT_STRING('L', "logs", &logs_id, "show task log output", NULL, 0, 0),
         OPT_STRING(0, "cancel", &cancel_id, "cancel a pending/running task", NULL, 0, 0),
         OPT_STRING(0, "delete", &delete_id, "delete a finished task", NULL, 0, 0),
+        OPT_STRING(0, "retry", &retry_id, "rerun an existing task's commands", NULL, 0, 0),
         OPT_BOOLEAN(0, "clean", &clean_flag, "remove all finished tasks", NULL, 0, 0),
         OPT_BOOLEAN(0, "verbose", &verbose_flag, "show detailed output", NULL, 0, 0),
         OPT_END(),
@@ -57,6 +59,8 @@ int main(int argc, const char *argv[])
         return action_logs(logs_id, verbose_flag);
     if (clean_flag)
         return action_clean();
+    if (retry_id)
+        return action_retry(retry_id, argc >= 1 ? argv[0] : NULL);
 
     if (argc >= 1)
         return action_create(argv[0]);
