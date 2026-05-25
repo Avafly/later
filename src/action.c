@@ -127,9 +127,10 @@ int action_create(const char *time_str)
     report[off] = '\0';
     close(pipefd[0]);
 
-    /* reap the first-fork child so it doesn't linger as a zombie. */
-    int wstatus;
-    waitpid(pid, &wstatus, 0);
+    /* No waitpid: read returns EOF only after both pipe writers close, and
+     * the first-fork child closes its copy by _exit'ing right after the
+     * second fork. By the time we get here that child is already gone, and
+     * init reaps the (microsecond-long) zombie when this process exits. */
 
     int ret;
     if (off > 0 && report[0] == 'k')
