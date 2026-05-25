@@ -38,9 +38,12 @@ void id_generate(char *buf, size_t n)
 
 int id_resolve(const char *input, char *out, size_t n)
 {
-    strvec list;
+    strvec *list = NULL;
     if (store_list(&list) < 0)
+    {
+        strvec_free(&list);
         return -1;
+    }
 
     /* try as 1-based index */
     int all_digits = input[0] != '\0';
@@ -56,20 +59,20 @@ int id_resolve(const char *input, char *out, size_t n)
     {
         char *end;
         long idx = strtol(input, &end, 10);
-        if (*end == '\0' && idx >= 1 && (size_t)idx <= list.len)
+        if (*end == '\0' && idx >= 1 && (size_t)idx <= list->len)
         {
-            snprintf(out, n, "%s", list.items[idx - 1]);
+            snprintf(out, n, "%s", list->items[idx - 1]);
             strvec_free(&list);
             return 0;
         }
     }
 
     /* exact match first */
-    for (size_t i = 0; i < list.len; ++i)
+    for (size_t i = 0; i < list->len; ++i)
     {
-        if (strcmp(list.items[i], input) == 0)
+        if (strcmp(list->items[i], input) == 0)
         {
-            snprintf(out, n, "%s", list.items[i]);
+            snprintf(out, n, "%s", list->items[i]);
             strvec_free(&list);
             return 0;
         }
@@ -79,12 +82,12 @@ int id_resolve(const char *input, char *out, size_t n)
     size_t in_len = strlen(input);
     int matches = 0;
     const char *hit = NULL;
-    for (size_t i = 0; i < list.len; ++i)
+    for (size_t i = 0; i < list->len; ++i)
     {
-        if (strncmp(list.items[i], input, in_len) == 0)
+        if (strncmp(list->items[i], input, in_len) == 0)
         {
             matches++;
-            hit = list.items[i];
+            hit = list->items[i];
         }
     }
     int rc;
@@ -208,8 +211,12 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
     if (!d)
         return;
 
-    strvec matches;
-    strvec_init(&matches);
+    strvec *matches = NULL;
+    if (strvec_init(&matches) < 0)
+    {
+        closedir(d);
+        return;
+    }
     size_t prefix_len = strlen(prefix);
 
     struct dirent *e;
@@ -229,16 +236,14 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
         char tmp[PATH_MAX];
         snprintf(tmp, sizeof(tmp), "%s%s", e->d_name, is_dir ? "/" : "");
 
-        char *dup = strdup(tmp);
-        if (!dup)
-            break;
-        strvec_push(&matches, dup);
+        if (strvec_push(matches, tmp) < 0)
+            break; /* hit cap or OOM — show what we collected so far. */
     }
     closedir(d);
 
-    qsort(matches.items, matches.len, sizeof(*matches.items), cmp_strp);
+    qsort(matches->items, matches->len, sizeof(*matches->items), cmp_strp);
 
-    for (size_t i = 0; i < matches.len; ++i)
+    for (size_t i = 0; i < matches->len; ++i)
     {
         char completion[PATH_MAX];
         snprintf(completion, sizeof(completion), "%s", context);
@@ -256,8 +261,8 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
         {
             strncat(completion, "~/", sizeof(completion) - strlen(completion) - 1);
         }
-        escape_and_append(matches.items[i], completion, sizeof(completion));
-        if (matches.len == 1)
+        escape_and_append(matches->items[i], completion, sizeof(completion));
+        if (matches->len == 1)
         {
             size_t cl = strlen(completion);
             if (cl > 0 && completion[cl - 1] != '/' && cl + 1 < sizeof(completion))
@@ -271,8 +276,12 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
     strvec_free(&matches);
 }
 
-int read_commands(strvec *out)
+int read_commands(strvec **out)
 {
+    if (strvec_init(out) < 0)
+        return -1;
+    strvec *v = *out;
+
     /* linenoise's own non-tty fallback (linenoiseNoTTY) handles piped
      * input via fgetc, so a single loop covers both. The differences
      * between tty and pipe modes are minor and stay outside the lib:
@@ -306,11 +315,11 @@ int read_commands(strvec *out)
 
         if (is_tty)
             linenoiseHistoryAdd(line);
-        char *dup = strdup(line);
+        int rc = strvec_push(v, line);
         linenoiseFree(line);
-        if (!dup)
+
+        if (rc < 0)
             return -1;
-        strvec_push(out, dup);
     }
     return 0;
 }

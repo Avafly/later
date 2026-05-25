@@ -1,38 +1,49 @@
 #include "strvec.h"
 
+#include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
-void strvec_init(strvec *v)
+int strvec_init(strvec **v)
 {
-    v->items = NULL;
-    v->len = 0;
-    v->cap = 0;
+    assert(v != NULL);
+    assert(*v == NULL);
+    *v = calloc(1, sizeof(strvec));
+    return *v ? 0 : -1;
 }
 
-void strvec_push(strvec *v, char *s)
+int strvec_push(strvec *v, const char *s)
 {
+    assert(v != NULL);
+    if (v->len >= STRVEC_MAX_LEN)
+        return -1;
+
     if (v->len == v->cap)
     {
         size_t nc = v->cap ? v->cap * 2 : 8;
+        if (nc > STRVEC_MAX_LEN)
+            nc = STRVEC_MAX_LEN;
         char **ni = realloc(v->items, nc * sizeof(*ni));
         if (!ni)
-        {
-            free(s);
-            return;
-        }
+            return -1;
         v->items = ni;
         v->cap = nc;
     }
-    v->items[v->len++] = s;
+
+    char *copy = strdup(s);
+    if (!copy)
+        return -1;
+    v->items[v->len++] = copy;
+    return 0;
 }
 
-void strvec_free(strvec *v)
+void strvec_free(strvec **v)
 {
-    if (!v)
+    if (!v || !*v)
         return;
-    for (size_t i = 0; i < v->len; ++i)
-        free(v->items[i]);
-    free(v->items);
-    v->items = NULL;
-    v->len = v->cap = 0;
+    for (size_t i = 0; i < (*v)->len; ++i)
+        free((*v)->items[i]);
+    free((*v)->items);
+    free(*v);
+    *v = NULL;
 }

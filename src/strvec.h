@@ -3,13 +3,8 @@
 
 #include <stddef.h>
 
-/*
- * A growable list of malloc'd C strings. The list takes ownership of every
- * string pushed into it and frees them in strvec_free. The same shape is
- * used everywhere the project needs "a dynamic list of strings" (task ids,
- * commands, completion candidates, etc.) so all four ad-hoc growers
- * collapse into one type.
- */
+#define STRVEC_MAX_LEN 4096
+
 typedef struct
 {
     char **items;
@@ -17,8 +12,17 @@ typedef struct
     size_t cap;
 } strvec;
 
-void strvec_init(strvec *v);
-void strvec_push(strvec *v, char *s); /* takes ownership; OOM silently drops */
-void strvec_free(strvec *v);
+/* Allocate a fresh empty strvec at *v. *v must be NULL on entry.
+ * Returns 0 on success, -1 on OOM (*v remains NULL). */
+int strvec_init(strvec **v);
+
+/* Append a copy of s to v. Returns 0 on success, -1 if the push failed
+ * (allocation failed or the vector has hit STRVEC_MAX_LEN). Requires
+ * v != NULL. The vector is left in a consistent state either way. */
+int strvec_push(strvec *v, const char *s);
+
+/* Release contents and the struct itself; sets *v = NULL.
+ * Safe on a NULL handle. Idempotent. */
+void strvec_free(strvec **v);
 
 #endif // LATER_STRVEC_H_

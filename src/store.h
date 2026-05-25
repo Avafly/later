@@ -50,8 +50,9 @@ const char *store_base_dir(void);
 int store_task_dir(const char *id, char *buf, size_t n);
 int store_path_in_task(const char *id, const char *name, char *buf, size_t n);
 
-/* fill out with task ids sorted by created_at; caller owns and strvec_frees. */
-int store_list(strvec *out);
+/* Allocate *out and fill it with task ids sorted by created_at.
+ * *out must be NULL on entry. Caller always strvec_frees. */
+int store_list(strvec **out);
 
 /* meta is written exactly once, atomically (tmp + rename). */
 int store_write_meta(const task_meta *m);
@@ -59,7 +60,9 @@ int store_read_meta(const char *id, task_meta *out);
 
 /* commands written once; cmd lines must not contain '\n'. */
 int store_write_commands(const char *id, char *const *cmds, size_t n);
-int store_read_commands(const char *id, strvec *out);
+/* Allocate *out and fill it with the task's commands.
+ * *out must be NULL on entry. Caller always strvec_frees. */
+int store_read_commands(const char *id, strvec **out);
 
 /* marker primitives — all O_EXCL or unlink, no in-place modification. */
 int store_create_marker(const char *id, const char *name);

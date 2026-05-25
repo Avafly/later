@@ -374,9 +374,11 @@ int store_write_commands(const char *id, char *const *cmds, size_t n)
     return 0;
 }
 
-int store_read_commands(const char *id, strvec *out)
+int store_read_commands(const char *id, strvec **out)
 {
-    strvec_init(out);
+    if (strvec_init(out) < 0)
+        return -1;
+    strvec *v = *out;
 
     char path[PATH_MAX];
     if (store_path_in_task(id, "commands", path, sizeof(path)) < 0)
@@ -385,6 +387,7 @@ int store_read_commands(const char *id, strvec *out)
     if (!f)
         return -1;
 
+    int rc = 0;
     char *line = NULL;
     size_t cap_line = 0;
     ssize_t got;
@@ -392,25 +395,17 @@ int store_read_commands(const char *id, strvec *out)
     {
         if (line[got - 1] == '\n')
             line[got - 1] = '\0';
-        char *dup = strdup(line);
-        if (!dup)
+        if (strvec_push(v, line) < 0)
         {
-            free(line);
-            fclose(f);
-            strvec_free(out);
-            return -1;
+            rc = -1;
+            break;
         }
-        strvec_push(out, dup);
     }
     free(line);
-    int err = ferror(f);
+    if (ferror(f))
+        rc = -1;
     fclose(f);
-    if (err)
-    {
-        strvec_free(out);
-        return -1;
-    }
-    return 0;
+    return rc;
 }
 
 /* --- list ----------------------------------------------------------------- */
@@ -436,9 +431,12 @@ static int cmp_by_created_at(const void *a, const void *b)
     return strcmp(ia, ib);
 }
 
-int store_list(strvec *out)
+int store_list(strvec **out)
 {
-    strvec_init(out);
+    if (strvec_init(out) < 0)
+        return -1;
+    strvec *v = *out;
+
     if (!g_base_inited && init_base_dir() < 0)
         return -1;
 
@@ -458,18 +456,15 @@ int store_list(strvec *out)
         if (stat(p, &st) < 0)
             continue; /* skip incomplete task dirs */
 
-        char *dup = strdup(e->d_name);
-        if (!dup)
+        if (strvec_push(v, e->d_name) < 0)
         {
             closedir(d);
-            strvec_free(out);
             return -1;
         }
-        strvec_push(out, dup);
     }
     closedir(d);
 
-    qsort(out->items, out->len, sizeof(*out->items), cmp_by_created_at);
+    qsort(v->items, v->len, sizeof(*v->items), cmp_by_created_at);
     return 0;
 }
 

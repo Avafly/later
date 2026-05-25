@@ -144,16 +144,22 @@ int action_create(const char *time_str)
 
     print_task_header(exec_at, now, cwd);
 
-    strvec cmds;
-    strvec_init(&cmds);
-    if (read_commands(&cmds) < 0 || cmds.len == 0)
+    strvec *cmds = NULL;
+    int rc_read = read_commands(&cmds);
+    if (rc_read < 0)
+    {
+        fprintf(stderr, "Error: failed to read commands\n");
+        strvec_free(&cmds);
+        return 1;
+    }
+    if (cmds == NULL || cmds->len == 0)
     {
         fprintf(stderr, "Error: no commands provided\n");
         strvec_free(&cmds);
         return 1;
     }
 
-    int rc = spawn_task(exec_at, now, cwd, &cmds);
+    int rc = spawn_task(exec_at, now, cwd, cmds);
     strvec_free(&cmds);
     return rc;
 }
@@ -163,13 +169,14 @@ int action_list(int verbose)
     if (store_ensure_base() < 0)
         return 1;
 
-    strvec list;
+    strvec *list = NULL;
     if (store_list(&list) < 0)
     {
         fprintf(stderr, "Error: cannot list tasks\n");
+        strvec_free(&list);
         return 1;
     }
-    if (list.len == 0)
+    if (list->len == 0)
     {
         printf("No tasks found\n");
         strvec_free(&list);
@@ -182,9 +189,9 @@ int action_list(int verbose)
     else
         printf("%-3s %-10s %-20s %-20s %s\n", "#", "Status", "Created at", "Execute at", "Cmds");
 
-    for (size_t i = 0; i < list.len; ++i)
+    for (size_t i = 0; i < list->len; ++i)
     {
-        const char *id = list.items[i];
+        const char *id = list->items[i];
         task_meta meta;
         if (store_read_meta(id, &meta) < 0)
             continue;
@@ -194,16 +201,18 @@ int action_list(int verbose)
         format_time(meta.created_at, created, sizeof(created));
         format_time(meta.execute_at, scheduled, sizeof(scheduled));
 
-        strvec cmds;
+        strvec *cmds = NULL;
         store_read_commands(id, &cmds);
+        size_t ncmds = cmds ? cmds->len : 0;
+        const char *first = (cmds && cmds->len > 0) ? cmds->items[0] : "";
 
         if (verbose)
         {
             char preview[24] = "";
-            if (cmds.len > 0)
+            if (ncmds > 0)
             {
-                snprintf(preview, sizeof(preview), "%.20s", cmds.items[0]);
-                if (strlen(cmds.items[0]) > 20)
+                snprintf(preview, sizeof(preview), "%.20s", first);
+                if (strlen(first) > 20)
                 {
                     preview[17] = '.';
                     preview[18] = '.';
@@ -215,13 +224,13 @@ int action_list(int verbose)
              * %-10s width counts only visible characters. */
             printf("%-3zu %s%-10s%s %-20s %-20s %-5zu %-25s %s\n", i + 1,
                    status_color_prefix(st), status_name(st), status_color_suffix(),
-                   created, scheduled, cmds.len, id, preview);
+                   created, scheduled, ncmds, id, preview);
         }
         else
         {
             printf("%-3zu %s%-10s%s %-20s %-20s %zu\n", i + 1,
                    status_color_prefix(st), status_name(st), status_color_suffix(),
-                   created, scheduled, cmds.len);
+                   created, scheduled, ncmds);
         }
         strvec_free(&cmds);
     }
@@ -256,14 +265,14 @@ int action_show(const char *id_input)
     printf("Execute at:  %s (%s)\n", tbuf, dbuf);
     printf("Working dir: %s\n", meta.cwd);
 
-    strvec cmds;
+    strvec *cmds = NULL;
     if (store_read_commands(id, &cmds) == 0)
     {
         printf("Commands:\n");
-        for (size_t i = 0; i < cmds.len; ++i)
-            printf("  %zu. %s\n", i + 1, cmds.items[i]);
-        strvec_free(&cmds);
+        for (size_t i = 0; i < cmds->len; ++i)
+            printf("  %zu. %s\n", i + 1, cmds->items[i]);
     }
+    strvec_free(&cmds);
 
     if (st == STATUS_FAILED)
     {
@@ -441,19 +450,20 @@ int action_clean(void)
     if (store_ensure_base() < 0)
         return 1;
 
-    strvec list;
+    strvec *list = NULL;
     if (store_list(&list) < 0)
     {
         fprintf(stderr, "Error: cannot list tasks\n");
+        strvec_free(&list);
         return 1;
     }
 
     int n = 0;
-    for (size_t i = 0; i < list.len; ++i)
+    for (size_t i = 0; i < list->len; ++i)
     {
-        if (status_is_final(store_resolve_status(list.items[i])))
+        if (status_is_final(store_resolve_status(list->items[i])))
         {
-            if (store_delete(list.items[i]) == 0)
+            if (store_delete(list->items[i]) == 0)
                 n++;
         }
     }
@@ -476,8 +486,8 @@ int action_retry(const char *id_input, const char *time_str)
     if (resolve_or_error(id_input, id, sizeof(id)) < 0)
         return 1;
 
-    strvec cmds;
-    if (store_read_commands(id, &cmds) < 0 || cmds.len == 0)
+    strvec *cmds = NULL;
+    if (store_read_commands(id, &cmds) < 0 || cmds->len == 0)
     {
         fprintf(stderr, "Error: task %s has no commands to retry\n", id);
         strvec_free(&cmds);
@@ -512,10 +522,10 @@ int action_retry(const char *id_input, const char *time_str)
     /* Show the user what they're re-running, since they didn't type it. */
     print_task_header(exec_at, now, cwd);
     printf("Commands:\n");
-    for (size_t i = 0; i < cmds.len; ++i)
-        printf("  %zu. %s\n", i + 1, cmds.items[i]);
+    for (size_t i = 0; i < cmds->len; ++i)
+        printf("  %zu. %s\n", i + 1, cmds->items[i]);
 
-    int rc = spawn_task(exec_at, now, cwd, &cmds);
+    int rc = spawn_task(exec_at, now, cwd, cmds);
     strvec_free(&cmds);
     return rc;
 }

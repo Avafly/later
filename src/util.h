@@ -19,9 +19,10 @@ int id_resolve(const char *input, char *out, size_t n);
 
 /*
  * Read commands from stdin: tty → linenoise prompt, pipe → one line each.
- * Trailing CR is stripped. Returns 0 on success (may be empty).
+ * Trailing CR is stripped. Allocates *out (which must be NULL on entry).
+ * Returns 0 on success (may be empty), -1 on OOM. Caller always strvec_frees.
  */
-int read_commands(strvec *out);
+int read_commands(strvec **out);
 
 /* `dst = a "/" b`; returns 0 ok, -1 on truncation. */
 int path_join(char *dst, size_t n, const char *a, const char *b);
