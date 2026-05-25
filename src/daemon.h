@@ -1,5 +1,5 @@
-#ifndef LATER_DAEMON_H
-#define LATER_DAEMON_H
+#ifndef LATER_DAEMON_H_
+#define LATER_DAEMON_H_
 
 #include "store.h"
 
@@ -13,4 +13,4 @@
  */
 _Noreturn void daemon_run(const task_meta *meta, char *const cmds[], size_t ncmds, int ready_fd);
 
-#endif
+#endif // LATER_DAEMON_H_

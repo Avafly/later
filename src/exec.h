@@ -1,5 +1,5 @@
-#ifndef LATER_EXEC_H
-#define LATER_EXEC_H
+#ifndef LATER_EXEC_H_
+#define LATER_EXEC_H_
 
 #include <stddef.h>
 
@@ -14,4 +14,4 @@
  */
 int exec_run_commands(char *const cmds[], size_t n, const char *cwd);
 
-#endif
+#endif // LATER_EXEC_H_

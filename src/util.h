@@ -1,5 +1,5 @@
-#ifndef LATER_UTIL_H
-#define LATER_UTIL_H
+#ifndef LATER_UTIL_H_
+#define LATER_UTIL_H_
 
 #include "strvec.h"
 
@@ -29,4 +29,4 @@ int path_join(char *dst, size_t n, const char *a, const char *b);
 /* recursive directory removal; equivalent to `rm -rf path`. */
 int rm_rf(const char *path);
 
-#endif
+#endif // LATER_UTIL_H_

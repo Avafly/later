@@ -1,5 +1,5 @@
-#ifndef LATER_TIMEFMT_H
-#define LATER_TIMEFMT_H
+#ifndef LATER_TIMEFMT_H_
+#define LATER_TIMEFMT_H_
 
 #include <stddef.h>
 #include <time.h>
@@ -20,4 +20,4 @@ void format_time(time_t t, char *buf, size_t n);
 /* "1h 2m 3s", "0s", or "5m ago" for negative durations. */
 void format_duration(long seconds, char *buf, size_t n);
 
-#endif
+#endif // LATER_TIMEFMT_H_

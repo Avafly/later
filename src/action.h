@@ -1,5 +1,5 @@
-#ifndef LATER_ACTION_H
-#define LATER_ACTION_H
+#ifndef LATER_ACTION_H_
+#define LATER_ACTION_H_
 
 int action_create(const char *time_str);
 int action_list(int verbose);
@@ -9,4 +9,4 @@ int action_delete(const char *id_input);
 int action_logs(const char *id_input, int verbose);
 int action_clean(void);
 
-#endif
+#endif // LATER_ACTION_H_

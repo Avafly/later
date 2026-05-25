@@ -1,5 +1,5 @@
-#ifndef LATER_STRVEC_H
-#define LATER_STRVEC_H
+#ifndef LATER_STRVEC_H_
+#define LATER_STRVEC_H_
 
 #include <stddef.h>
 
@@ -21,4 +21,4 @@ void strvec_init(strvec *v);
 void strvec_push(strvec *v, char *s); /* takes ownership; OOM silently drops */
 void strvec_free(strvec *v);
 
-#endif
+#endif // LATER_STRVEC_H_

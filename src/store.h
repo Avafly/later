@@ -1,5 +1,5 @@
-#ifndef LATER_STORE_H
-#define LATER_STORE_H
+#ifndef LATER_STORE_H_
+#define LATER_STORE_H_
 
 #include "strvec.h"
 
@@ -86,4 +86,4 @@ const char *status_name(task_status s);
 const char *status_name_color(task_status s);
 int status_is_final(task_status s);
 
-#endif
+#endif // LATER_STORE_H_
