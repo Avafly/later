@@ -30,6 +30,7 @@ add_executable(later
     src/daemon.c
     src/exec.c
     src/store.c
+    src/strvec.c
     src/timefmt.c
     src/util.c
     src/3rdparty/argparse/argparse.c

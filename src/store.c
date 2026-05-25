@@ -372,8 +372,10 @@ int store_write_commands(const char *id, char *const *cmds, size_t n)
     return 0;
 }
 
-int store_read_commands(const char *id, char ***out_cmds, size_t *out_n)
+int store_read_commands(const char *id, strvec *out)
 {
+    strvec_init(out);
+
     char path[PATH_MAX];
     if (store_path_in_task(id, "commands", path, sizeof(path)) < 0)
         return -1;
@@ -381,8 +383,6 @@ int store_read_commands(const char *id, char ***out_cmds, size_t *out_n)
     if (!f)
         return -1;
 
-    char **items = NULL;
-    size_t n = 0, cap = 0;
     char *line = NULL;
     size_t cap_line = 0;
     ssize_t got;
@@ -390,50 +390,25 @@ int store_read_commands(const char *id, char ***out_cmds, size_t *out_n)
     {
         if (line[got - 1] == '\n')
             line[got - 1] = '\0';
-        if (n == cap)
-        {
-            size_t nc = cap ? cap * 2 : 8;
-            char **ni = realloc(items, nc * sizeof(*items));
-            if (!ni)
-            {
-                free(line);
-                fclose(f);
-                store_free_commands(items, n);
-                return -1;
-            }
-            items = ni;
-            cap = nc;
-        }
-        items[n] = strdup(line);
-        if (!items[n])
+        char *dup = strdup(line);
+        if (!dup)
         {
             free(line);
             fclose(f);
-            store_free_commands(items, n);
+            strvec_free(out);
             return -1;
         }
-        n++;
+        strvec_push(out, dup);
     }
     free(line);
     int err = ferror(f);
     fclose(f);
     if (err)
     {
-        store_free_commands(items, n);
+        strvec_free(out);
         return -1;
     }
-    *out_cmds = items;
-    *out_n = n;
     return 0;
-}
-
-void store_free_commands(char **cmds, size_t n)
-{
-    if (!cmds)
-        return;
-    for (size_t i = 0; i < n; ++i)
-        free(cmds[i]);
-    free(cmds);
 }
 
 /* --- list ----------------------------------------------------------------- */
@@ -459,10 +434,9 @@ static int cmp_by_created_at(const void *a, const void *b)
     return strcmp(ia, ib);
 }
 
-int store_list(task_id_list *out)
+int store_list(strvec *out)
 {
-    out->ids = NULL;
-    out->len = 0;
+    strvec_init(out);
     if (!g_base_inited && init_base_dir() < 0)
         return -1;
 
@@ -470,7 +444,6 @@ int store_list(task_id_list *out)
     if (!d)
         return (errno == ENOENT) ? 0 : -1;
 
-    size_t cap = 0;
     struct dirent *e;
     while ((e = readdir(d)))
     {
@@ -483,43 +456,19 @@ int store_list(task_id_list *out)
         if (stat(p, &st) < 0)
             continue; /* skip incomplete task dirs */
 
-        if (out->len == cap)
-        {
-            size_t nc = cap ? cap * 2 : 16;
-            char **ni = realloc(out->ids, nc * sizeof(*ni));
-            if (!ni)
-            {
-                closedir(d);
-                store_list_free(out);
-                return -1;
-            }
-            out->ids = ni;
-            cap = nc;
-        }
-        out->ids[out->len] = strdup(e->d_name);
-        if (!out->ids[out->len])
+        char *dup = strdup(e->d_name);
+        if (!dup)
         {
             closedir(d);
-            store_list_free(out);
+            strvec_free(out);
             return -1;
         }
-        out->len++;
+        strvec_push(out, dup);
     }
     closedir(d);
 
-    qsort(out->ids, out->len, sizeof(*out->ids), cmp_by_created_at);
+    qsort(out->items, out->len, sizeof(*out->items), cmp_by_created_at);
     return 0;
-}
-
-void store_list_free(task_id_list *list)
-{
-    if (!list || !list->ids)
-        return;
-    for (size_t i = 0; i < list->len; ++i)
-        free(list->ids[i]);
-    free(list->ids);
-    list->ids = NULL;
-    list->len = 0;
 }
 
 /* --- status resolution: the heart of the state model ---------------------- */

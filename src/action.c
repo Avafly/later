@@ -157,7 +157,7 @@ int action_list(int verbose)
     if (store_ensure_base() < 0)
         return 1;
 
-    task_id_list list = {0};
+    strvec list;
     if (store_list(&list) < 0)
     {
         fprintf(stderr, "Error: cannot list tasks\n");
@@ -166,7 +166,7 @@ int action_list(int verbose)
     if (list.len == 0)
     {
         printf("No tasks found\n");
-        store_list_free(&list);
+        strvec_free(&list);
         return 0;
     }
 
@@ -178,7 +178,7 @@ int action_list(int verbose)
 
     for (size_t i = 0; i < list.len; ++i)
     {
-        const char *id = list.ids[i];
+        const char *id = list.items[i];
         task_meta meta;
         if (store_read_meta(id, &meta) < 0)
             continue;
@@ -188,17 +188,16 @@ int action_list(int verbose)
         format_time(meta.created_at, created, sizeof(created));
         format_time(meta.execute_at, scheduled, sizeof(scheduled));
 
-        char **cmds = NULL;
-        size_t ncmds = 0;
-        store_read_commands(id, &cmds, &ncmds);
+        strvec cmds;
+        store_read_commands(id, &cmds);
 
         if (verbose)
         {
             char preview[24] = "";
-            if (ncmds > 0)
+            if (cmds.len > 0)
             {
-                snprintf(preview, sizeof(preview), "%.20s", cmds[0]);
-                if (strlen(cmds[0]) > 20)
+                snprintf(preview, sizeof(preview), "%.20s", cmds.items[0]);
+                if (strlen(cmds.items[0]) > 20)
                 {
                     preview[17] = '.';
                     preview[18] = '.';
@@ -209,16 +208,16 @@ int action_list(int verbose)
             /* %-19s on the colored status keeps column alignment by counting
              * the ANSI escapes; status_name_color outputs 9 extra bytes. */
             printf("%-3zu %-19s %-20s %-20s %-5zu %-25s %s\n", i + 1, status_name_color(st),
-                   created, scheduled, ncmds, id, preview);
+                   created, scheduled, cmds.len, id, preview);
         }
         else
         {
             printf("%-3zu %-19s %-20s %-20s %zu\n", i + 1, status_name_color(st), created,
-                   scheduled, ncmds);
+                   scheduled, cmds.len);
         }
-        store_free_commands(cmds, ncmds);
+        strvec_free(&cmds);
     }
-    store_list_free(&list);
+    strvec_free(&list);
     return 0;
 }
 
@@ -249,14 +248,13 @@ int action_show(const char *id_input)
     printf("Execute at:  %s (%s)\n", tbuf, dbuf);
     printf("Working dir: %s\n", meta.cwd);
 
-    char **cmds = NULL;
-    size_t ncmds = 0;
-    if (store_read_commands(id, &cmds, &ncmds) == 0)
+    strvec cmds;
+    if (store_read_commands(id, &cmds) == 0)
     {
         printf("Commands:\n");
-        for (size_t i = 0; i < ncmds; ++i)
-            printf("  %zu. %s\n", i + 1, cmds[i]);
-        store_free_commands(cmds, ncmds);
+        for (size_t i = 0; i < cmds.len; ++i)
+            printf("  %zu. %s\n", i + 1, cmds.items[i]);
+        strvec_free(&cmds);
     }
 
     if (st == STATUS_FAILED)
@@ -435,7 +433,7 @@ int action_clean(void)
     if (store_ensure_base() < 0)
         return 1;
 
-    task_id_list list = {0};
+    strvec list;
     if (store_list(&list) < 0)
     {
         fprintf(stderr, "Error: cannot list tasks\n");
@@ -445,13 +443,13 @@ int action_clean(void)
     int n = 0;
     for (size_t i = 0; i < list.len; ++i)
     {
-        if (status_is_final(store_resolve_status(list.ids[i])))
+        if (status_is_final(store_resolve_status(list.items[i])))
         {
-            if (store_delete(list.ids[i]) == 0)
+            if (store_delete(list.items[i]) == 0)
                 n++;
         }
     }
-    store_list_free(&list);
+    strvec_free(&list);
     printf("Cleaned %d task(s)\n", n);
     return 0;
 }

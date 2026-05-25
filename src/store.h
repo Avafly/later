@@ -1,6 +1,8 @@
 #ifndef LATER_STORE_H
 #define LATER_STORE_H
 
+#include "strvec.h"
+
 #include <limits.h>
 #include <stddef.h>
 #include <sys/types.h>
@@ -48,14 +50,8 @@ const char *store_base_dir(void);
 int store_task_dir(const char *id, char *buf, size_t n);
 int store_path_in_task(const char *id, const char *name, char *buf, size_t n);
 
-/* return list of task ids sorted by created_at (caller frees via store_list_free) */
-typedef struct
-{
-    char **ids;
-    size_t len;
-} task_id_list;
-int store_list(task_id_list *out);
-void store_list_free(task_id_list *list);
+/* fill out with task ids sorted by created_at; caller owns and strvec_frees. */
+int store_list(strvec *out);
 
 /* meta is written exactly once, atomically (tmp + rename). */
 int store_write_meta(const task_meta *m);
@@ -63,8 +59,7 @@ int store_read_meta(const char *id, task_meta *out);
 
 /* commands written once; cmd lines must not contain '\n'. */
 int store_write_commands(const char *id, char *const *cmds, size_t n);
-int store_read_commands(const char *id, char ***out_cmds, size_t *out_n);
-void store_free_commands(char **cmds, size_t n);
+int store_read_commands(const char *id, strvec *out);
 
 /* marker primitives — all O_EXCL or unlink, no in-place modification. */
 int store_create_marker(const char *id, const char *name);

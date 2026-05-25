@@ -38,7 +38,7 @@ void id_generate(char *buf, size_t n)
 
 int id_resolve(const char *input, char *out, size_t n)
 {
-    task_id_list list = {0};
+    strvec list;
     if (store_list(&list) < 0)
         return -1;
 
@@ -58,8 +58,8 @@ int id_resolve(const char *input, char *out, size_t n)
         long idx = strtol(input, &end, 10);
         if (*end == '\0' && idx >= 1 && (size_t)idx <= list.len)
         {
-            snprintf(out, n, "%s", list.ids[idx - 1]);
-            store_list_free(&list);
+            snprintf(out, n, "%s", list.items[idx - 1]);
+            strvec_free(&list);
             return 0;
         }
     }
@@ -67,10 +67,10 @@ int id_resolve(const char *input, char *out, size_t n)
     /* exact match first */
     for (size_t i = 0; i < list.len; ++i)
     {
-        if (strcmp(list.ids[i], input) == 0)
+        if (strcmp(list.items[i], input) == 0)
         {
-            snprintf(out, n, "%s", list.ids[i]);
-            store_list_free(&list);
+            snprintf(out, n, "%s", list.items[i]);
+            strvec_free(&list);
             return 0;
         }
     }
@@ -81,10 +81,10 @@ int id_resolve(const char *input, char *out, size_t n)
     const char *hit = NULL;
     for (size_t i = 0; i < list.len; ++i)
     {
-        if (strncmp(list.ids[i], input, in_len) == 0)
+        if (strncmp(list.items[i], input, in_len) == 0)
         {
             matches++;
-            hit = list.ids[i];
+            hit = list.items[i];
         }
     }
     int rc;
@@ -97,45 +97,8 @@ int id_resolve(const char *input, char *out, size_t n)
     {
         rc = (matches == 0) ? -1 : -2;
     }
-    store_list_free(&list);
+    strvec_free(&list);
     return rc;
-}
-
-/* --- strvec --------------------------------------------------------------- */
-
-void strvec_init(strvec *v)
-{
-    v->items = NULL;
-    v->len = 0;
-    v->cap = 0;
-}
-
-void strvec_push(strvec *v, char *s)
-{
-    if (v->len == v->cap)
-    {
-        size_t nc = v->cap ? v->cap * 2 : 8;
-        char **ni = realloc(v->items, nc * sizeof(*ni));
-        if (!ni)
-        {
-            free(s);
-            return;
-        }
-        v->items = ni;
-        v->cap = nc;
-    }
-    v->items[v->len++] = s;
-}
-
-void strvec_free(strvec *v)
-{
-    if (!v)
-        return;
-    for (size_t i = 0; i < v->len; ++i)
-        free(v->items[i]);
-    free(v->items);
-    v->items = NULL;
-    v->len = v->cap = 0;
 }
 
 /* --- read_commands -------------------------------------------------------- */
@@ -245,8 +208,8 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
     if (!d)
         return;
 
-    char **matches = NULL;
-    size_t mlen = 0, mcap = 0;
+    strvec matches;
+    strvec_init(&matches);
     size_t prefix_len = strlen(prefix);
 
     struct dirent *e;
@@ -266,25 +229,16 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
         char tmp[PATH_MAX];
         snprintf(tmp, sizeof(tmp), "%s%s", e->d_name, is_dir ? "/" : "");
 
-        if (mlen == mcap)
-        {
-            size_t nc = mcap ? mcap * 2 : 8;
-            char **nm = realloc(matches, nc * sizeof(*nm));
-            if (!nm)
-                break;
-            matches = nm;
-            mcap = nc;
-        }
-        matches[mlen] = strdup(tmp);
-        if (!matches[mlen])
+        char *dup = strdup(tmp);
+        if (!dup)
             break;
-        mlen++;
+        strvec_push(&matches, dup);
     }
     closedir(d);
 
-    qsort(matches, mlen, sizeof(*matches), cmp_strp);
+    qsort(matches.items, matches.len, sizeof(*matches.items), cmp_strp);
 
-    for (size_t i = 0; i < mlen; ++i)
+    for (size_t i = 0; i < matches.len; ++i)
     {
         char completion[PATH_MAX];
         snprintf(completion, sizeof(completion), "%s", context);
@@ -302,8 +256,8 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
         {
             strncat(completion, "~/", sizeof(completion) - strlen(completion) - 1);
         }
-        escape_and_append(matches[i], completion, sizeof(completion));
-        if (mlen == 1)
+        escape_and_append(matches.items[i], completion, sizeof(completion));
+        if (matches.len == 1)
         {
             size_t cl = strlen(completion);
             if (cl > 0 && completion[cl - 1] != '/' && cl + 1 < sizeof(completion))
@@ -313,9 +267,8 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
             }
         }
         linenoiseAddCompletion(lc, completion);
-        free(matches[i]);
     }
-    free(matches);
+    strvec_free(&matches);
 }
 
 int read_commands(strvec *out)
