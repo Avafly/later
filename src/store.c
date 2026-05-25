@@ -243,7 +243,7 @@ int store_is_locked(const char *id)
 
 /* --- meta ----------------------------------------------------------------- */
 
-int store_write_meta(const task_meta_t *m)
+int store_write_meta(const task_meta *m)
 {
     char dir[PATH_MAX], path[PATH_MAX], tmp[PATH_MAX];
     if (store_task_dir(m->id, dir, sizeof(dir)) < 0)
@@ -295,7 +295,7 @@ static int parse_kv_line(char *line, char **k, char **v)
     return 0;
 }
 
-int store_read_meta(const char *id, task_meta_t *out)
+int store_read_meta(const char *id, task_meta *out)
 {
     char path[PATH_MAX];
     if (store_path_in_task(id, "meta", path, sizeof(path)) < 0)
@@ -442,7 +442,7 @@ static int cmp_by_created_at(const void *a, const void *b)
 {
     const char *ia = *(const char *const *)a;
     const char *ib = *(const char *const *)b;
-    task_meta_t ma, mb;
+    task_meta ma, mb;
     int ra = store_read_meta(ia, &ma);
     int rb = store_read_meta(ib, &mb);
     /* unreadable meta sorts last so it doesn't crash the table */
@@ -459,7 +459,7 @@ static int cmp_by_created_at(const void *a, const void *b)
     return strcmp(ia, ib);
 }
 
-int store_list(task_id_list_t *out)
+int store_list(task_id_list *out)
 {
     out->ids = NULL;
     out->len = 0;
@@ -511,7 +511,7 @@ int store_list(task_id_list_t *out)
     return 0;
 }
 
-void store_list_free(task_id_list_t *list)
+void store_list_free(task_id_list *list)
 {
     if (!list || !list->ids)
         return;
@@ -524,7 +524,7 @@ void store_list_free(task_id_list_t *list)
 
 /* --- status resolution: the heart of the state model ---------------------- */
 
-task_status_t store_resolve_status(const char *id)
+task_status store_resolve_status(const char *id)
 {
     /* External markers come first: pause/cancel describe intent that
      * overrides what the daemon is doing. */
@@ -598,7 +598,7 @@ int store_delete(const char *id)
 
 /* --- status names --------------------------------------------------------- */
 
-const char *status_name(task_status_t s)
+const char *status_name(task_status s)
 {
     switch (s)
     {
@@ -618,7 +618,7 @@ const char *status_name(task_status_t s)
     return "unknown";
 }
 
-const char *status_name_color(task_status_t s)
+const char *status_name_color(task_status s)
 {
     switch (s)
     {
@@ -638,7 +638,7 @@ const char *status_name_color(task_status_t s)
     return "unknown";
 }
 
-int status_is_final(task_status_t s)
+int status_is_final(task_status s)
 {
     return s == STATUS_COMPLETED || s == STATUS_FAILED || s == STATUS_CANCELLED;
 }

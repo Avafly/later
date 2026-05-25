@@ -31,7 +31,7 @@ typedef enum
     STATUS_FAILED,
     STATUS_CANCELLED,
     STATUS_PAUSED,
-} task_status_t;
+} task_status;
 
 typedef struct
 {
@@ -40,7 +40,7 @@ typedef struct
     time_t created_at;
     time_t execute_at;
     pid_t daemon_pid;
-} task_meta_t;
+} task_meta;
 
 /* base dir is $XDG_DATA_HOME/later or $HOME/.local/share/later; created lazily */
 int store_ensure_base(void);
@@ -53,13 +53,13 @@ typedef struct
 {
     char **ids;
     size_t len;
-} task_id_list_t;
-int store_list(task_id_list_t *out);
-void store_list_free(task_id_list_t *list);
+} task_id_list;
+int store_list(task_id_list *out);
+void store_list_free(task_id_list *list);
 
 /* meta is written exactly once, atomically (tmp + rename). */
-int store_write_meta(const task_meta_t *m);
-int store_read_meta(const char *id, task_meta_t *out);
+int store_write_meta(const task_meta *m);
+int store_read_meta(const char *id, task_meta *out);
 
 /* commands written once; cmd lines must not contain '\n'. */
 int store_write_commands(const char *id, char *const *cmds, size_t n);
@@ -82,13 +82,13 @@ int store_is_locked(const char *id);    /* 1 if some process holds it */
 int store_fsync_marker(const char *id, const char *name);
 
 /* the authoritative status derivation. Reads markers + lock; no caching. */
-task_status_t store_resolve_status(const char *id);
+task_status store_resolve_status(const char *id);
 
 /* recursive rm of the task directory. */
 int store_delete(const char *id);
 
-const char *status_name(task_status_t s);
-const char *status_name_color(task_status_t s);
-int status_is_final(task_status_t s);
+const char *status_name(task_status s);
+const char *status_name_color(task_status s);
+int status_is_final(task_status s);
 
 #endif

@@ -38,7 +38,7 @@ void id_generate(char *buf, size_t n)
 
 int id_resolve(const char *input, char *out, size_t n)
 {
-    task_id_list_t list = {0};
+    task_id_list list = {0};
     if (store_list(&list) < 0)
         return -1;
 
@@ -103,14 +103,14 @@ int id_resolve(const char *input, char *out, size_t n)
 
 /* --- strvec --------------------------------------------------------------- */
 
-void strvec_init(strvec_t *v)
+void strvec_init(strvec *v)
 {
     v->items = NULL;
     v->len = 0;
     v->cap = 0;
 }
 
-void strvec_push(strvec_t *v, char *s)
+void strvec_push(strvec *v, char *s)
 {
     if (v->len == v->cap)
     {
@@ -127,7 +127,7 @@ void strvec_push(strvec_t *v, char *s)
     v->items[v->len++] = s;
 }
 
-void strvec_free(strvec_t *v)
+void strvec_free(strvec *v)
 {
     if (!v)
         return;
@@ -318,7 +318,7 @@ static void completion_cb(const char *buf, linenoiseCompletions *lc)
     free(matches);
 }
 
-int read_commands(strvec_t *out)
+int read_commands(strvec *out)
 {
     /* linenoise's own non-tty fallback (linenoiseNoTTY) handles piped
      * input via fgetc, so a single loop covers both. The differences

@@ -60,10 +60,10 @@ static void sleep_until_wall(time_t deadline)
     }
 }
 
-_Noreturn void daemon_run(const task_meta_t *meta_in, char *const cmds[], size_t ncmds,
+_Noreturn void daemon_run(const task_meta *meta_in, char *const cmds[], size_t ncmds,
                           int ready_fd)
 {
-    task_meta_t meta = *meta_in;
+    task_meta meta = *meta_in;
 
     /* first fork already happened in the parent: we are the child. */
 

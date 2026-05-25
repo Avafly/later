@@ -59,7 +59,7 @@ int action_create(const char *time_str)
     printf("Execute at:  %s (%s)\n", tbuf, dbuf);
     printf("Working dir: %s\n", cwd);
 
-    strvec_t cmds;
+    strvec cmds;
     strvec_init(&cmds);
     if (read_commands(&cmds) < 0 || cmds.len == 0)
     {
@@ -68,7 +68,7 @@ int action_create(const char *time_str)
         return 1;
     }
 
-    task_meta_t meta = {0};
+    task_meta meta = {0};
     id_generate(meta.id, sizeof(meta.id));
     snprintf(meta.cwd, sizeof(meta.cwd), "%s", cwd);
     meta.created_at = now;
@@ -157,7 +157,7 @@ int action_list(int verbose)
     if (store_ensure_base() < 0)
         return 1;
 
-    task_id_list_t list = {0};
+    task_id_list list = {0};
     if (store_list(&list) < 0)
     {
         fprintf(stderr, "Error: cannot list tasks\n");
@@ -179,11 +179,11 @@ int action_list(int verbose)
     for (size_t i = 0; i < list.len; ++i)
     {
         const char *id = list.ids[i];
-        task_meta_t meta;
+        task_meta meta;
         if (store_read_meta(id, &meta) < 0)
             continue;
 
-        task_status_t st = store_resolve_status(id);
+        task_status st = store_resolve_status(id);
         char created[64], scheduled[64];
         format_time(meta.created_at, created, sizeof(created));
         format_time(meta.execute_at, scheduled, sizeof(scheduled));
@@ -228,13 +228,13 @@ int action_show(const char *id_input)
     if (resolve_or_error(id_input, id, sizeof(id)) < 0)
         return 1;
 
-    task_meta_t meta;
+    task_meta meta;
     if (store_read_meta(id, &meta) < 0)
     {
         fprintf(stderr, "Error: cannot read task %s\n", id);
         return 1;
     }
-    task_status_t st = store_resolve_status(id);
+    task_status st = store_resolve_status(id);
 
     char tbuf[64], dbuf[64];
     format_time(meta.execute_at, tbuf, sizeof(tbuf));
@@ -274,14 +274,14 @@ int action_cancel(const char *id_input)
     if (resolve_or_error(id_input, id, sizeof(id)) < 0)
         return 1;
 
-    task_meta_t meta;
+    task_meta meta;
     if (store_read_meta(id, &meta) < 0)
     {
         fprintf(stderr, "Error: cannot read task %s\n", id);
         return 1;
     }
 
-    task_status_t st = store_resolve_status(id);
+    task_status st = store_resolve_status(id);
     if (st != STATUS_PENDING && st != STATUS_RUNNING && st != STATUS_PAUSED)
     {
         printf("Task %s is already %s\n", id, status_name(st));
@@ -355,7 +355,7 @@ int action_delete(const char *id_input)
     if (resolve_or_error(id_input, id, sizeof(id)) < 0)
         return 1;
 
-    task_status_t st = store_resolve_status(id);
+    task_status st = store_resolve_status(id);
     if (st == STATUS_PENDING || st == STATUS_RUNNING || st == STATUS_PAUSED)
     {
         fprintf(stderr, "Error: task %s is still %s, cancel it first\n", id, status_name(st));
@@ -435,7 +435,7 @@ int action_clean(void)
     if (store_ensure_base() < 0)
         return 1;
 
-    task_id_list_t list = {0};
+    task_id_list list = {0};
     if (store_list(&list) < 0)
     {
         fprintf(stderr, "Error: cannot list tasks\n");

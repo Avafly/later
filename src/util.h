@@ -20,18 +20,18 @@ typedef struct
     char **items;
     size_t len;
     size_t cap;
-} strvec_t;
+} strvec;
 
-void strvec_init(strvec_t *v);
-void strvec_push(strvec_t *v, char *s); /* takes ownership */
-void strvec_free(strvec_t *v);
+void strvec_init(strvec *v);
+void strvec_push(strvec *v, char *s); /* takes ownership */
+void strvec_free(strvec *v);
 
 /*
  * Read commands from stdin: tty → linenoise prompt, pipe → one line each.
  * Lines containing embedded '\n' or '\r' are rejected with a stderr warning.
  * Returns 0 on success (may be empty).
  */
-int read_commands(strvec_t *out);
+int read_commands(strvec *out);
 
 /* `dst = a "/" b`; returns 0 ok, -1 on truncation. */
 int path_join(char *dst, size_t n, const char *a, const char *b);

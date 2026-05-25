@@ -11,6 +11,6 @@
  * cmds is owned by the caller's heap and survives until _exit; the daemon
  * does not free it.
  */
-_Noreturn void daemon_run(const task_meta_t *meta, char *const cmds[], size_t ncmds, int ready_fd);
+_Noreturn void daemon_run(const task_meta *meta, char *const cmds[], size_t ncmds, int ready_fd);
 
 #endif
