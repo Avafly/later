@@ -1,4 +1,5 @@
 #include "action.h"
+
 #include "3rdparty/argparse/argparse.h"
 
 #include <stdio.h>
@@ -39,7 +40,8 @@ int main(int argc, const char *argv[])
     argparse_describe(&ap, "\nlater — schedule shell commands for later execution", NULL);
     argc = argparse_parse(&ap, argc, argv);
 
-    if (version_flag) {
+    if (version_flag)
+    {
         printf("later 0.1.0\n");
         return 0;
     }

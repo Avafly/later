@@ -1,10 +1,10 @@
 #ifndef LATER_STORE_H
 #define LATER_STORE_H
 
+#include <limits.h>
 #include <stddef.h>
 #include <sys/types.h>
 #include <time.h>
-#include <limits.h>
 
 /*
  * Layout: $XDG_DATA_HOME/later/<id>/ (one directory per task)
@@ -23,7 +23,8 @@
  * matters and is the daemon's responsibility (see daemon.c).
  */
 
-typedef enum {
+typedef enum
+{
     STATUS_PENDING,
     STATUS_RUNNING,
     STATUS_COMPLETED,
@@ -32,7 +33,8 @@ typedef enum {
     STATUS_PAUSED,
 } task_status_t;
 
-typedef struct {
+typedef struct
+{
     char id[64];
     char cwd[PATH_MAX];
     time_t created_at;
@@ -47,7 +49,8 @@ int store_task_dir(const char *id, char *buf, size_t n);
 int store_path_in_task(const char *id, const char *name, char *buf, size_t n);
 
 /* return list of task ids sorted by created_at (caller frees via store_list_free) */
-typedef struct {
+typedef struct
+{
     char **ids;
     size_t len;
 } task_id_list_t;
@@ -65,16 +68,15 @@ void store_free_commands(char **cmds, size_t n);
 
 /* marker primitives — all O_EXCL or unlink, no in-place modification. */
 int store_create_marker(const char *id, const char *name);
-int store_create_marker_with_content(const char *id, const char *name,
-                                     const char *content);
+int store_create_marker_with_content(const char *id, const char *name, const char *content);
 int store_marker_exists(const char *id, const char *name);
 /* returns bytes read (0 if missing), -1 on error; buf is NUL-terminated. */
 ssize_t store_marker_read(const char *id, const char *name, char *buf, size_t n);
 int store_marker_remove(const char *id, const char *name);
 
 /* daemon liveness via advisory file lock. */
-int store_acquire_lock(const char *id);   /* keeps fd open; caller closes at exit */
-int store_is_locked(const char *id);      /* 1 if some process holds it */
+int store_acquire_lock(const char *id); /* keeps fd open; caller closes at exit */
+int store_is_locked(const char *id);    /* 1 if some process holds it */
 
 /* fsync a marker file by name (used by daemon before releasing the lock). */
 int store_fsync_marker(const char *id, const char *name);

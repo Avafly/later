@@ -19,10 +19,16 @@
 static void write_all(int fd, const char *data, size_t len)
 {
     size_t off = 0;
-    while (off < len) {
+    while (off < len)
+    {
         ssize_t n = write(fd, data + off, len - off);
-        if (n > 0) { off += (size_t)n; continue; }
-        if (n < 0 && errno == EINTR) continue;
+        if (n > 0)
+        {
+            off += (size_t)n;
+            continue;
+        }
+        if (n < 0 && errno == EINTR)
+            continue;
         return;
     }
 }
@@ -31,7 +37,8 @@ static void report_and_exit(int ready_fd, const char *msg)
 {
     char buf[512];
     int n = snprintf(buf, sizeof(buf), "e%s", msg);
-    if (n > 0) write_all(ready_fd, buf, (size_t)n);
+    if (n > 0)
+        write_all(ready_fd, buf, (size_t)n);
     close(ready_fd);
     _exit(1);
 }
@@ -41,18 +48,20 @@ static void report_and_exit(int ready_fd, const char *msg)
  * nothing because we only loop on early wake-ups. */
 static void sleep_until_wall(time_t deadline)
 {
-    while (1) {
+    while (1)
+    {
         time_t now = time(NULL);
-        if (now >= deadline) return;
+        if (now >= deadline)
+            return;
         struct timespec ts;
-        ts.tv_sec  = deadline - now;
+        ts.tv_sec = deadline - now;
         ts.tv_nsec = 0;
         nanosleep(&ts, NULL);
     }
 }
 
-_Noreturn void daemon_run(const task_meta_t *meta_in, char *const cmds[],
-                          size_t ncmds, int ready_fd)
+_Noreturn void daemon_run(const task_meta_t *meta_in, char *const cmds[], size_t ncmds,
+                          int ready_fd)
 {
     task_meta_t meta = *meta_in;
 
@@ -65,7 +74,7 @@ _Noreturn void daemon_run(const task_meta_t *meta_in, char *const cmds[],
     if (pid < 0)
         report_and_exit(ready_fd, strerror(errno));
     if (pid > 0)
-        _exit(0);   /* intermediate exits; grandchild continues */
+        _exit(0); /* intermediate exits; grandchild continues */
 
     /* now the real daemon. */
     meta.daemon_pid = getpid();
@@ -77,7 +86,8 @@ _Noreturn void daemon_run(const task_meta_t *meta_in, char *const cmds[],
     char dir[PATH_MAX];
     if (store_task_dir(meta.id, dir, sizeof(dir)) < 0)
         report_and_exit(ready_fd, "task path too long");
-    if (mkdir(dir, 0755) < 0 && errno != EEXIST) {
+    if (mkdir(dir, 0755) < 0 && errno != EEXIST)
+    {
         char buf[PATH_MAX + 64];
         snprintf(buf, sizeof(buf), "mkdir %s: %s", dir, strerror(errno));
         report_and_exit(ready_fd, buf);
@@ -123,9 +133,9 @@ _Noreturn void daemon_run(const task_meta_t *meta_in, char *const cmds[],
     sleep_until_wall(meta.execute_at);
 
     /* mark running BEFORE the first command starts. */
-    if (store_create_marker(meta.id, "running") < 0) {
-        store_create_marker_with_content(meta.id, "error",
-                                         "failed to create running marker");
+    if (store_create_marker(meta.id, "running") < 0)
+    {
+        store_create_marker_with_content(meta.id, "error", "failed to create running marker");
         store_fsync_marker(meta.id, "error");
         close(lock_fd);
         _exit(1);
@@ -137,12 +147,15 @@ _Noreturn void daemon_run(const task_meta_t *meta_in, char *const cmds[],
      * The fsync guarantees an observer that sees the lock released will also
      * see the done/error marker on disk, so resolve_status never misreports
      * Completed/Failed as Failed-by-crash. */
-    if (rc == 0) {
+    if (rc == 0)
+    {
         store_create_marker(meta.id, "done");
         store_fsync_marker(meta.id, "done");
         close(lock_fd);
         _exit(0);
-    } else {
+    }
+    else
+    {
         char msg[256];
         if (rc < 0)
             snprintf(msg, sizeof(msg), "execution error: %s", strerror(errno));
