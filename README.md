@@ -14,37 +14,62 @@ I wrote `later` because I often need to run things in the background or schedule
   echo "git push origin main" | later 18:15
   ```
 
-- Run commands in the background as I don't want to open a new terminal (check progress by `later --logs`):
+- Run commands in the background as I don't want to open a new terminal (check progress with `later --log`):
 
   ```bash
   $ later +0m # run commands immediately
-  Execute at:   2026-02-13 18:55:56 (0s)
-  Working dir:  /Users/user/whatever/build
+  Execute at:  2026-02-13 18:55:56 (0s)
+  Working dir: /Users/user/whatever/build
   later> cmake ..
   later> make -j`nproc`
   later> make install PREFIX=./install
   later>
-  Task 1770976574_95743 created
+  Task 1770976574_95743_a3f1 created
   ```
 
 ## How it works
 
-1. Run each task as a daemon (double fork, setsid, execl). Commands within a task share a process group, so cancelling kills everything cleanly.
-2. Redirect stdout/stderr to a log file, so the task's output is viewable anytime with `--logs`.
-3. Track daemon liveness via file locks (`flock`).
-4. Store and manage tasks as files. No system service.
+1. Each task's state is written only by its own daemon, a single-writer model.
+2. There is no background daemon managing tasks; state is represented by files, and transitions are made atomic with `open(O_EXCL)` and `rename()`, which resists races and crashes.
+3. A file lock (`flock`) tracks daemon liveness, and marker files represent a task's state.
+4. Each task runs as a daemon (double fork, `setsid`, `execl`) and is managed through its process group, so cancelling reaches the whole command tree.
+5. stdout/stderr are redirected to a log file, viewable anytime with `--log`.
+6. Daemons are controlled through signals (cancel, pause/resume, purge).
+
+### Task lifecycle
+
+```
+     create
+       │
+       ▼
+    ┌─────────┐   exec_at    ┌─────────┐    all ok     ┌───────────┐
+    │ PENDING │ ───────────► │ RUNNING │ ────────────► │ COMPLETED │
+    └─────────┘              └─────────┘               └───────────┘
+       │   ▲                  │   ▲   │  a cmd fails   ┌────────┐
+       │   │                  │   │   └──────────────► │ FAILED │
+  pause│   │resume       pause│   │resume              └────────┘
+       │   │                  │   │                        ▲
+       ▼   │                  ▼   │                        │ daemon dies
+    ┌────────┐               ┌────────┐                    │ (crash/OOM/kill)
+    │ PAUSED │               │ PAUSED │
+    └────────┘               └────────┘
+
+  From PENDING/RUNNING/PAUSED:
+       later --cancel ──► CANCELLED
+       daemon dies    ──► FAILED (crash/OOM/kill)
+```
 
 ## Differences from `at`
 
 | | `later` | `at` |
 |---|---|---|
 | Architecture | No background service, tasks stored as files | Centralized `atd` daemon |
-| Output | `later --logs` | Sent via system mail |
+| Output | `later --log` | Sent via system mail |
 | Crash handling | Task file status and file lock | Lost if `atd` crashes |
 | Cancellation | Cancel pending and running tasks | Cancel pending tasks only |
-| Task visibility | Full lifecycle status (Running, Failed, etc.) | Pending tasks only |
+| Task visibility | Full lifecycle status (Running, Paused, Failed, ...) | Pending tasks only |
 | Input | Pipe or interactive | Pipe or interactive |
-| Extras | `--retry`, `--dry-run`, `--cleanup`, ... | — |
+| Extras | `--retry`, `--pause`/`--resume`, `--clean`, `--purge` | — |
 
 ## Examples
 
@@ -52,13 +77,13 @@ I wrote `later` because I often need to run things in the background or schedule
 
 ```bash
 $ later +1m
-Execute at:   2026-02-12 22:20:56 (1m)
-Working dir:  /Users/user/Downloads/build
+Execute at:  2026-02-12 22:20:56 (1m)
+Working dir: /Users/user/Downloads/build
 later> cmake ../opencv-4.x
 later> make -j4
 later> make install DESTDIR=./install
 later>
-Task 1770902509_74290 created
+Task 1770902509_74290_b1c2 created
 ```
 
 **Check task**
@@ -72,60 +97,62 @@ $ later -l
 **View progress**
 
 ```bash
-$ later --logs 1 | tail -3
+$ later --log 1 | tail -3
 [  6%] Linking C static library ../lib/libzlib.a
 [  6%] Building C object 3rdparty/openjpeg/openjp2/CMakeFiles/libopenjp2.dir/mqc.c.o
 [  6%] Built target zlib
 ```
 
+**Pause / resume a running task**
+
+```bash
+$ later --pause 1
+Task 1770902509_74290_b1c2 paused
+$ later --resume 1
+Task 1770902509_74290_b1c2 resumed
+```
+
 **Cancel task**
 
 ```bash
-$ later -c 1
-Task 1770902509_74290 cancelled
-$ later --logs 1 | tail -4
+$ later --cancel 1
+Task 1770902509_74290_b1c2 cancelled
+$ later --log 1 | tail -3
 make[2]: *** Waiting for unfinished jobs....
-make[2]: *** [3rdparty/libwebp/CMakeFiles/libwebp.dir/all] Terminated: 15
 make: *** [all] Terminated: 15
-Task cancelled by user
+Task cancelled by user.
 ```
 
 **Retry task**
 
 ```bash
-$ later -r 1 +0s
+$ later --retry 1 +0s
 Execute at:  2026-02-17 22:26:43 (0s)
 Working dir: /Users/user/projects/build
 Commands:
   1. cmake ../opencv-4.x
   2. make -j4
   3. make install DESTDIR=./install
-Task 1771334803_35103 created
+Task 1771334803_35103_c9d0 created
 ```
 
 ## Dependencies
 
-All 3rdparty libraries are included in `src/3rdparty`. You only need a compiler that supports C++20.
+All third-party libraries are bundled in `src/3rdparty`. You only need a C11 compiler.
 
-| Library | Version |
+| Library | Use |
 |---|---|
-| [fmtlib/fmt](https://github.com/fmtlib/fmt) | 12.1.0 |
-| [TartanLlama/expected](https://github.com/TartanLlama/expected) | 1.3.1 |
-| [CLIUtils/CLI11](https://github.com/CLIUtils/CLI11) | 2.6.1 |
-| [nlohmann/json](https://github.com/nlohmann/json) | 3.12.0 |
-| [antirez/linenoise](https://github.com/antirez/linenoise) | Commit c12b66d |
+| [cofyc/argparse](https://github.com/cofyc/argparse) | command-line option parsing |
+| [antirez/linenoise](https://github.com/antirez/linenoise) | interactive line editing & completion |
 
 ## Uninstall
 
-Delete the data directory and the executable:
-
 ```bash
-rm -rf ~/.local/share/later/
-rm ~/.local/bin/later  # or wherever you installed the binary
+later --purge         # cancel every task and erase the data directory
+rm ~/.local/bin/later # remove executable binary
 ```
 
 ## Tested on
 
-- macOS 15.7.3
-- Debian 12.13
-- Ubuntu 24.04.3
+- Debian/AlmaLinux
+- macOS 15/26
