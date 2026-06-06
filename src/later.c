@@ -58,7 +58,7 @@ int main(int argc, const char *argv[])
 
     if (version_flag)
     {
-        printf("later 0.1.0\n");
+        printf("later 0.2.0\n");
         return 0;
     }
     if (list_flag)
