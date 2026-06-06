@@ -143,6 +143,26 @@ static int kill_alive_groups(const strvec *tasks)
     return n;
 }
 
+/* Wait up to 10s for the groups to exit, then SIGKILL any that ignored it.
+ * Return how many were force-killed. */
+static int wait_then_kill(const strvec *tasks)
+{
+    int waited = 0;
+    while (waited < 10000 && any_group_alive(tasks))
+    {
+        sleep_ms(100);
+        waited += 100;
+    }
+    int forced = 0;
+    if (any_group_alive(tasks))
+    {
+        forced = kill_alive_groups(tasks);
+        for (int k = 0; k < 10 && any_group_alive(tasks); ++k)
+            sleep_ms(100);
+    }
+    return forced;
+}
+
 int action_create(const char *time_str)
 {
     if (store_ensure_base() < 0)
@@ -362,6 +382,15 @@ int action_cancel(const char *id_input)
         return 1;
     }
 
+    int stuck = 0;
+    strvec *one = NULL;
+    if (strvec_init(&one) == 0 && strvec_push(one, id) == 0)
+    {
+        wait_then_kill(one);
+        stuck = any_group_alive(one);
+    }
+    strvec_free(&one);
+
     char path[PATH_MAX];
     if (store_path_in_task(id, "log", path, sizeof(path)) == 0)
     {
@@ -377,6 +406,10 @@ int action_cancel(const char *id_input)
         }
     }
     printf("Task %s cancelled\n", id);
+    if (stuck)
+        fprintf(stderr,
+                "Warning: a process from %s could not be killed; it may be stuck (check with ps)\n",
+                id);
     return 0;
 }
 
@@ -662,23 +695,10 @@ int action_purge(void)
         }
     }
 
-    // wait up to 10s for the daemons to exit
-    int forced = 0;
-    if (stopped > 0)
-    {
-        int waited = 0;
-        while (waited < 10000 && any_group_alive(list))
-        {
-            sleep_ms(100);
-            waited += 100;
-        }
-        if (any_group_alive(list))
-        {
-            forced = kill_alive_groups(list);
-            for (int k = 0; k < 10 && any_group_alive(list); ++k)
-                sleep_ms(100);
-        }
-    }
+    // wait up to 10s for the daemons to exit, then SIGKILL stragglers
+    int forced = stopped > 0 ? wait_then_kill(list) : 0;
+    // still alive means it survived even SIGKILL (e.g. stuck in D state)
+    int stuck = stopped > 0 && any_group_alive(list);
 
     int removed = 0, failed = 0;
     for (size_t i = 0; i < list->len; ++i)
@@ -705,6 +725,9 @@ int action_purge(void)
     printf("Purged %d task(s).\n", removed);
     if (forced > 0)
         printf("Force-killed %d unresponsive daemon(s).\n", forced);
+    if (stuck)
+        printf("Warning: some tasks could not be fully stopped; a process may be stuck (check with "
+               "ps).\n");
     if (failed > 0)
         printf("Warning: %d task dir(s) could not be removed.\n", failed);
 
