@@ -2,6 +2,7 @@
 #define LATER_STRVEC_H_
 
 #include <stddef.h>
+
 #define STRVEC_MAX_LEN 4096
 
 typedef struct
