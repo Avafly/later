@@ -57,6 +57,9 @@ int store_is_locked(const char *id);
 int store_write_meta(const task_meta *meta);
 int store_read_meta(const char *id, task_meta *meta);
 
+/* Return 1 if the task's process group still has a live member that belongs to this task. */
+int store_task_group_alive(const char *id);
+
 int store_write_commands(const char *id, char *const *cmds, size_t n);
 int store_read_commands(const char *id, strvec **cmds);
 

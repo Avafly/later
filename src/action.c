@@ -113,9 +113,7 @@ static int any_group_alive(const strvec *tasks)
 {
     for (size_t i = 0; i < tasks->len; ++i)
     {
-        task_meta meta;
-        if (store_read_meta(tasks->items[i], &meta) == 0 && meta.daemon_pid > 0 &&
-            kill(-meta.daemon_pid, 0) == 0)
+        if (store_task_group_alive(tasks->items[i]))
             return 1;
     }
     return 0;
@@ -133,8 +131,8 @@ static int kill_alive_groups(const strvec *tasks)
     for (size_t i = 0; i < tasks->len; ++i)
     {
         task_meta meta;
-        if (store_read_meta(tasks->items[i], &meta) == 0 && meta.daemon_pid > 0 &&
-            kill(-meta.daemon_pid, 0) == 0)
+        if (store_task_group_alive(tasks->items[i]) &&
+            store_read_meta(tasks->items[i], &meta) == 0 && meta.daemon_pid > 1)
         {
             kill(-meta.daemon_pid, SIGKILL);
             ++n;

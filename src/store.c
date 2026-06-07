@@ -261,6 +261,18 @@ int store_read_meta(const char *id, task_meta *meta)
     return err ? -1 : 0;
 }
 
+int store_task_group_alive(const char *id)
+{
+    task_meta meta;
+    if (store_read_meta(id, &meta) < 0 || meta.daemon_pid <= 1)
+        return 0;
+    if (kill(-meta.daemon_pid, 0) != 0)
+        return 0; // group gone
+    if (store_is_locked(id))
+        return 1;
+    return kill(meta.daemon_pid, 0) != 0;
+}
+
 int store_write_commands(const char *id, char *const *cmds, size_t n)
 {
     char path[PATH_MAX], tmp[PATH_MAX];
