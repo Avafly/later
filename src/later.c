@@ -6,17 +6,8 @@
 #include <string.h>
 
 static const char *const usages[] = {
-    "later [<time>] (e.g., 17:30, +30m, +2h, +1d, 2024-01-28T17:30:00)",
-    "later --list",
-    "later --show <id>",
-    "later --log <id>",
-    "later --cancel <id>",
-    "later --pause <id>",
-    "later --resume <id>",
-    "later --delete <id>",
-    "later --clean",
-    "later --retry <id> <time>",
-    "later --purge",
+    "later [<time>]   schedule piped or typed commands (e.g. 17:30, +30m, +2h, +1d)",
+    "later <option>   inspect or manage tasks",
     NULL};
 
 int main(int argc, const char *argv[])
