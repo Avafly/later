@@ -506,12 +506,12 @@ task_status store_resolve_status(const char *id)
     int running = store_has_marker(id, "running");
     int locked = store_is_locked(id);
 
-    if (cancelled)
-        return STATUS_CANCELLED;
     if (done)
         return STATUS_COMPLETED;
     if (error)
         return STATUS_FAILED;
+    if (cancelled)
+        return STATUS_CANCELLED;
     if (paused && locked)
         return STATUS_PAUSED;
     if (running)
