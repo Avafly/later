@@ -151,8 +151,3 @@ All third-party libraries are bundled in `src/3rdparty`. You only need a C11 com
 later --purge         # cancel every task and erase the data directory
 rm ~/.local/bin/later # remove executable binary
 ```
-
-## Tested on
-
-- Debian/AlmaLinux
-- macOS 15/26
