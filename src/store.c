@@ -226,7 +226,7 @@ int store_write_meta(const task_meta *meta)
         unlink(tmp);
         return -1;
     }
-    return 0;
+    return fsync_dir(dir);
 }
 
 int store_read_meta(const char *id, task_meta *meta)
@@ -275,7 +275,9 @@ int store_task_group_alive(const char *id)
 
 int store_write_commands(const char *id, char *const *cmds, size_t n)
 {
-    char path[PATH_MAX], tmp[PATH_MAX];
+    char dir[PATH_MAX], path[PATH_MAX], tmp[PATH_MAX];
+    if (store_task_dir(id, dir, sizeof(dir)) < 0)
+        return -1;
     if (store_path_in_task(id, "commands", path, sizeof(path)) < 0)
         return -1;
     if ((size_t)snprintf(tmp, sizeof(tmp), "%s.tmp.%d", path, (int)getpid()) >= sizeof(tmp))
@@ -313,7 +315,7 @@ int store_write_commands(const char *id, char *const *cmds, size_t n)
         unlink(tmp);
         return -1;
     }
-    return 0;
+    return fsync_dir(dir);
 }
 
 int store_read_commands(const char *id, strvec **cmds)
