@@ -10,7 +10,7 @@
  *   HH:MM or HH:MM:SS          today (or tomorrow if already past)
  *   YYYY-MM-DDTHH:MM:SS        absolute local time (must be in the future)
  *
- * On error, writes a message into errbuf and returns -1.
+ * On error, write a message into errbuf and return -1.
  */
 int timefmt_parse_time(const char *input, time_t *out, char *errbuf, size_t errsz);
 
