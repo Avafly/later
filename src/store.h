@@ -10,19 +10,15 @@
 
 /*
  * Layout: $XDG_DATA_HOME/later/<id>/ (one directory per task)
- *   meta        immutable, key=value: cwd, created_at, execute_at, daemon_pid
- *   commands    immutable, one shell command per line (no '\n' allowed)
- *   log         stdout + stderr of the task
- *   lock        held by the daemon via flock; release on exit = "daemon gone"
- *   running     marker: created when the daemon starts the first command
- *   done        marker: created after all commands exit 0 (terminal: Completed)
- *   error       marker with content: failure reason (terminal: Failed)
- *   cancel      marker: created by `later --cancel` before signalling the daemon
- *   pause       marker: created by `later --pause` before SIGSTOP
- *
- * State invariant: every marker file is created at most once, never modified.
- * Each transition is a single atomic syscall (open O_EXCL or rename). Order
- * matters and is the daemon's responsibility (see daemon.c).
+ *   meta       immutable, key=value: cwd, created_at, execute_at, daemon_pid
+ *   commands   immutable, one shell command per line (no '\n' allowed)
+ *   log        stdout + stderr of the task
+ *   lock       held by the daemon via flock; release on exit = "daemon gone"
+ *   running    marker: created when the daemon starts the first command
+ *   done       marker: created after all commands exit 0 (terminal: Completed)
+ *   error      marker with content: failure reason (terminal: Failed)
+ *   cancel     marker: created by `later --cancel` before signalling the daemon
+ *   pause      marker: created by `later --pause` before SIGSTOP
  */
 
 typedef enum
