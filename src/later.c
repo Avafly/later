@@ -6,7 +6,7 @@
 #include <string.h>
 
 static const char *const usages[] = {
-    "later [<time>]   schedule piped or typed commands (e.g. 17:30, +30m, +2h, +1d)",
+    "later [<time>]   schedule commands (e.g. 17:30, +15m, +2h, +1d, 2026-01-01T09:30:00)",
     "later <option>   inspect or manage tasks",
     NULL};
 
