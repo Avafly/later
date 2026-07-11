@@ -1,6 +1,7 @@
 #include "timefmt.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,7 +10,7 @@
 
 static int parse_relative(const char *input, time_t *out, char *errbuf, size_t errsz)
 {
-    /* +<num>(d|h|m|s)... in any combination, each unit at most once */
+    // +<num>(d|h|m|s)... in any combination, each unit at most once
     if (input[0] != '+')
     {
         snprintf(errbuf, errsz, "Relative time must start with '+'");
@@ -22,6 +23,8 @@ static int parse_relative(const char *input, time_t *out, char *errbuf, size_t e
         return -1;
     }
 
+    // 10 years; also bounds the arithmetic below
+    const long max_delay = 10L * 365 * 86400;
     long secs = 0;
     int seen_d = 0, seen_h = 0, seen_m = 0, seen_s = 0;
     while (*p)
@@ -32,43 +35,51 @@ static int parse_relative(const char *input, time_t *out, char *errbuf, size_t e
             return -1;
         }
         char *end;
+        errno = 0;
         long v = strtol(p, &end, 10);
-        if (end == p || v < 0)
+        if (end == p || errno == ERANGE || v < 0)
         {
             snprintf(errbuf, errsz, "Invalid relative time: %s", input);
             return -1;
         }
         char unit = *end;
+        long mult;
         switch (unit)
         {
             case 'd':
                 if (seen_d)
                     goto dup;
                 seen_d = 1;
-                secs += v * 86400;
+                mult = 86400;
                 break;
             case 'h':
                 if (seen_h)
                     goto dup;
                 seen_h = 1;
-                secs += v * 3600;
+                mult = 3600;
                 break;
             case 'm':
                 if (seen_m)
                     goto dup;
                 seen_m = 1;
-                secs += v * 60;
+                mult = 60;
                 break;
             case 's':
                 if (seen_s)
                     goto dup;
                 seen_s = 1;
-                secs += v;
+                mult = 1;
                 break;
             default:
                 snprintf(errbuf, errsz, "Invalid unit '%c' in: %s", unit, input);
                 return -1;
         }
+        if (v > (max_delay - secs) / mult)
+        {
+            snprintf(errbuf, errsz, "Relative time too large: %s", input);
+            return -1;
+        }
+        secs += v * mult;
         p = end + 1;
     }
 
@@ -83,9 +94,17 @@ dup:
 static int parse_iso(const char *input, time_t *out, char *errbuf, size_t errsz)
 {
     int y, mo, d, h, mi, s;
-    if (sscanf(input, "%4d-%2d-%2dT%2d:%2d:%2d", &y, &mo, &d, &h, &mi, &s) != 6)
+    int consumed = 0;
+    if (sscanf(input, "%4d-%2d-%2dT%2d:%2d:%2d%n", &y, &mo, &d, &h, &mi, &s, &consumed) != 6 ||
+        input[consumed] != '\0')
     {
         snprintf(errbuf, errsz, "Invalid ISO time: %s", input);
+        return -1;
+    }
+    if (mo < 1 || mo > 12 || d < 1 || d > 31 || h < 0 || h > 23 || mi < 0 || mi > 59 || s < 0 ||
+        s > 59)
+    {
+        snprintf(errbuf, errsz, "Invalid date/time values: %s", input);
         return -1;
     }
     struct tm tm = {0};
@@ -100,6 +119,12 @@ static int parse_iso(const char *input, time_t *out, char *errbuf, size_t errsz)
     if (t == (time_t)-1)
     {
         snprintf(errbuf, errsz, "Invalid date/time: %s", input);
+        return -1;
+    }
+    // mktime normalizes out-of-range dates (e.g. Feb 30 -> Mar 2); reject those
+    if (tm.tm_year != y - 1900 || tm.tm_mon != mo - 1 || tm.tm_mday != d)
+    {
+        snprintf(errbuf, errsz, "Invalid date/time values: %s", input);
         return -1;
     }
     if (t <= time(NULL))
