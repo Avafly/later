@@ -264,6 +264,10 @@ void generate_id(char *buf, size_t n)
 
 int resolve_id(const char *input, char *out, size_t n)
 {
+    // an empty string would prefix-match every task
+    if (input[0] == '\0')
+        return -1;
+
     strvec *list = NULL;
     if (store_list(&list) < 0)
     {
