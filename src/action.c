@@ -400,7 +400,7 @@ int action_cancel(const char *id_input)
         }
         else
         {
-            fprintf(stderr, "Warning: cannot append cancel note to log: %s", strerror(errno));
+            fprintf(stderr, "Warning: cannot append cancel note to log: %s\n", strerror(errno));
         }
     }
     printf("Task %s cancelled\n", id);
