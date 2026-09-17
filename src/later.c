@@ -49,6 +49,20 @@ int main(int argc, const char *argv[])
     argparse_describe(&ap, "\nlater - schedule commands for later execution", NULL);
     argc = argparse_parse(&ap, argc, argv);
 
+    int actions = version_flag + list_flag + clean_flag + purge_flag + (show_id != NULL) +
+                  (cancel_id != NULL) + (pause_id != NULL) + (resume_id != NULL) +
+                  (delete_id != NULL) + (log_id != NULL) + (retry_id != NULL);
+    if (actions > 1)
+    {
+        fprintf(stderr, "Error: only one action at a time\n");
+        return 1;
+    }
+    if (actions > 0 && !retry_id && (argc >= 1 || after_id))
+    {
+        fprintf(stderr, "Error: a time and --after only apply when creating a task\n");
+        return 1;
+    }
+
     if (version_flag)
     {
         printf("later 0.3.0\n");
