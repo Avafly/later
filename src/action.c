@@ -263,6 +263,11 @@ int action_create(const char *time_str, const char *after_id)
 
 int action_list(int verbose)
 {
+    enum
+    {
+        LIST_MAX = 15
+    };
+
     if (store_ensure_base() < 0)
         return 1;
 
@@ -286,7 +291,8 @@ int action_list(int verbose)
     else
         printf("%-3s %-10s %-20s %-20s %s\n", "#", "Status", "Created at", "Execute at", "Cmds");
 
-    for (size_t i = 0; i < list->len; ++i)
+    size_t start = (!verbose && list->len > LIST_MAX) ? list->len - LIST_MAX : 0;
+    for (size_t i = start; i < list->len; ++i)
     {
         const char *id = list->items[i];
         task_status st = store_resolve_status(id);
