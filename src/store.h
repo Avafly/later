@@ -10,10 +10,11 @@
 
 /*
  * Layout: $XDG_DATA_HOME/later/<id>/ (one directory per task)
- *   meta       immutable, key=value: cwd, created_at, execute_at, daemon_pid
+ *   meta       immutable, key=value: cwd, created_at, execute_at, daemon_pid, after
  *   commands   immutable, one shell command per line (no '\n' allowed)
  *   log        stdout + stderr of the task
  *   lock       held by the daemon via flock; release on exit = "daemon gone"
+ *   waiting    marker: created when the daemon starts waiting for another task
  *   running    marker: created when the daemon starts the first command
  *   done       marker: created after all commands exit 0 (terminal: Completed)
  *   error      marker with content: failure reason (terminal: Failed)
@@ -24,6 +25,7 @@
 typedef enum
 {
     STATUS_PENDING,
+    STATUS_WAITING,
     STATUS_RUNNING,
     STATUS_COMPLETED,
     STATUS_FAILED,
@@ -38,6 +40,7 @@ typedef struct
     time_t created_at;
     time_t execute_at;
     pid_t daemon_pid;
+    char after[64];
 } task_meta;
 
 /* Base dir: $XDG_DATA_HOME/later or $HOME/.local/share/later */
@@ -70,6 +73,9 @@ int store_remove_marker(const char *id, const char *name);
 int store_list(strvec **list);
 
 task_status store_resolve_status(const char *id);
+
+/* Block until the task's daemon exits, then return its final status. */
+task_status store_wait_task(const char *id);
 
 const char *store_status_name(task_status st);
 const char *store_status_color_prefix(task_status st);

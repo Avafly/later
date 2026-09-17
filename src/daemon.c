@@ -2,6 +2,7 @@
 
 #include "exec.h"
 #include "store.h"
+#include "timefmt.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -38,6 +39,13 @@ static void report_and_exit(int ready_fd, const char *msg)
     if (n > 0)
         write_all(ready_fd, buf, (size_t)n);
     close(ready_fd);
+    _exit(1);
+}
+
+static void mark_failed_and_exit(const char *id, int lock_fd, const char *msg)
+{
+    store_create_marker_with_content(id, "error", msg);
+    close(lock_fd);
     _exit(1);
 }
 
@@ -121,15 +129,33 @@ void daemon_run(task_meta meta, char *const *cmds, size_t ncmds, int ready_fd)
     write_all(ready_fd, "k", 1);
     close(ready_fd);
 
-    sleep_until_wall(meta.execute_at);
+    if (meta.after[0])
+    {
+        store_create_marker(meta.id, "waiting");
+
+        char buf[64];
+        timefmt_format_time(time(NULL), buf, sizeof(buf));
+        printf("[%s] Waiting for task %s\n", buf, meta.after);
+        fflush(stdout);
+
+        task_status dep = store_wait_task(meta.after);
+        if (dep != STATUS_COMPLETED)
+        {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "Dependency %s: %s", meta.after, store_status_name(dep));
+            fprintf(stderr, "%s\n", msg);
+            fflush(stderr);
+            mark_failed_and_exit(meta.id, lock_fd, msg);
+        }
+    }
+    else
+    {
+        sleep_until_wall(meta.execute_at);
+    }
 
     // mark running before the first command starts
     if (store_create_marker(meta.id, "running") < 0)
-    {
-        store_create_marker_with_content(meta.id, "error", "failed to create running marker");
-        close(lock_fd);
-        _exit(1);
-    }
+        mark_failed_and_exit(meta.id, lock_fd, "failed to create running marker");
 
     int rc = exec_run_commands(cmds, ncmds, meta.cwd);
 
@@ -146,8 +172,6 @@ void daemon_run(task_meta meta, char *const *cmds, size_t ncmds, int ready_fd)
             snprintf(msg, sizeof(msg), "execution error: %s", strerror(errno));
         else
             snprintf(msg, sizeof(msg), "Exit code: %d", rc);
-        store_create_marker_with_content(meta.id, "error", msg);
-        close(lock_fd);
-        _exit(1);
+        mark_failed_and_exit(meta.id, lock_fd, msg);
     }
 }

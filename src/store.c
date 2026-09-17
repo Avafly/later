@@ -211,6 +211,7 @@ int store_write_meta(const task_meta *meta)
     fprintf(f, "created_at=%lld\n", (long long)meta->created_at);
     fprintf(f, "execute_at=%lld\n", (long long)meta->execute_at);
     fprintf(f, "daemon_pid=%lld\n", (long long)meta->daemon_pid);
+    fprintf(f, "after=%s\n", meta->after);
     int werr = ferror(f);
     if (fflush(f) != 0 || fsync(fileno(f)) != 0)
         werr = 1;
@@ -255,6 +256,8 @@ int store_read_meta(const char *id, task_meta *meta)
             meta->execute_at = (time_t)strtoll(v, NULL, 10);
         else if (strcmp(k, "daemon_pid") == 0)
             meta->daemon_pid = (pid_t)strtoll(v, NULL, 10);
+        else if (strcmp(k, "after") == 0)
+            snprintf(meta->after, sizeof(meta->after), "%s", v);
     }
     int err = ferror(f);
     fclose(f);
@@ -506,6 +509,7 @@ task_status store_resolve_status(const char *id)
     int done = store_has_marker(id, "done");
     int error = store_has_marker(id, "error");
     int running = store_has_marker(id, "running");
+    int waiting = store_has_marker(id, "waiting");
     int locked = store_is_locked(id);
 
     if (done)
@@ -518,7 +522,31 @@ task_status store_resolve_status(const char *id)
         return STATUS_PAUSED;
     if (running)
         return locked ? STATUS_RUNNING : STATUS_FAILED;
+    if (waiting)
+        return locked ? STATUS_WAITING : STATUS_FAILED;
     return locked ? STATUS_PENDING : STATUS_FAILED;
+}
+
+task_status store_wait_task(const char *id)
+{
+    char path[PATH_MAX];
+    if (store_path_in_task(id, "lock", path, sizeof(path)) < 0)
+        return STATUS_FAILED;
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0)
+        return STATUS_FAILED;
+
+    while (flock(fd, LOCK_SH) < 0)
+    {
+        if (errno != EINTR)
+        {
+            close(fd);
+            return STATUS_FAILED;
+        }
+    }
+    close(fd);
+
+    return store_resolve_status(id);
 }
 
 const char *store_status_name(task_status st)
@@ -527,6 +555,8 @@ const char *store_status_name(task_status st)
     {
         case STATUS_PENDING:
             return "pending";
+        case STATUS_WAITING:
+            return "waiting";
         case STATUS_RUNNING:
             return "running";
         case STATUS_COMPLETED:
@@ -549,6 +579,8 @@ const char *store_status_color_prefix(task_status st)
     {
         case STATUS_PENDING:
             return "\033[33m";
+        case STATUS_WAITING:
+            return "\033[35m";
         case STATUS_RUNNING:
             return "\033[34m";
         case STATUS_COMPLETED:

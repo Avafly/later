@@ -16,24 +16,33 @@
 #include <time.h>
 #include <unistd.h>
 
-static void print_task_header(time_t exec_at, time_t now, const char *cwd)
+static void print_task_header(time_t exec_at, const char *dep, time_t now, const char *cwd)
 {
-    char scheduled[64], duration[64];
-    timefmt_format_time(exec_at, scheduled, sizeof(scheduled));
-    timefmt_format_duration((long)(exec_at - now), duration, sizeof(duration));
-    printf("Execute at:  %s (%s)\n", scheduled, duration);
+    if (dep[0])
+    {
+        printf("Execute at:  after task %s completes\n", dep);
+    }
+    else
+    {
+        char scheduled[64], duration[64];
+        timefmt_format_time(exec_at, scheduled, sizeof(scheduled));
+        timefmt_format_duration((long)(exec_at - now), duration, sizeof(duration));
+        printf("Execute at:  %s (%s)\n", scheduled, duration);
+    }
     printf("Working dir: %s\n", cwd);
 }
 
 /* Fork the daemon and wait for its readiness signal.
  * Return 0 if the daemon reported success, or 1 on failure. */
-static int spawn_task(time_t exec_at, time_t now, const char *cwd, const strvec *cmds)
+static int spawn_task(time_t exec_at, const char *dep, time_t now, const char *cwd,
+                      const strvec *cmds)
 {
     task_meta meta = {0};
     generate_id(meta.id, sizeof(meta.id));
     snprintf(meta.cwd, sizeof(meta.cwd), "%s", cwd);
+    snprintf(meta.after, sizeof(meta.after), "%s", dep);
     meta.created_at = now;
-    meta.execute_at = exec_at;
+    meta.execute_at = dep[0] ? now : exec_at;
     meta.daemon_pid = -1;
 
     int pipefd[2];
@@ -108,6 +117,46 @@ static int resolve_or_error(const char *input, char *out, size_t n)
     return rc;
 }
 
+static int parse_trigger(const char *time_str, const char *after_id, time_t *exec_at, char *dep,
+                         size_t depn)
+{
+    *exec_at = 0;
+    dep[0] = '\0';
+
+    if (time_str && after_id)
+    {
+        fprintf(stderr, "Error: cannot combine a time with --after\n");
+        return -1;
+    }
+    if (!time_str && !after_id)
+    {
+        fprintf(stderr, "Error: a time or --after is required\n");
+        return -1;
+    }
+
+    if (time_str)
+    {
+        char errbuf[256];
+        if (timefmt_parse_time(time_str, exec_at, errbuf, sizeof(errbuf)) < 0)
+        {
+            fprintf(stderr, "Error: %s\n", errbuf);
+            return -1;
+        }
+        return 0;
+    }
+
+    if (resolve_or_error(after_id, dep, depn) < 0)
+        return -1;
+
+    task_status st = store_resolve_status(dep);
+    if (st != STATUS_COMPLETED && store_status_is_final(st))
+    {
+        fprintf(stderr, "Error: task %s is already %s\n", dep, store_status_name(st));
+        return -1;
+    }
+    return 0;
+}
+
 /* Return 1 if any task's process group still has a live member. */
 static int any_group_alive(const strvec *tasks)
 {
@@ -161,7 +210,15 @@ static int wait_then_kill(const strvec *tasks)
     return forced;
 }
 
-int action_create(const char *time_str)
+static size_t list_index_of(const strvec *list, const char *id)
+{
+    for (size_t i = 0; i < list->len; ++i)
+        if (strcmp(list->items[i], id) == 0)
+            return i + 1;
+    return 0;
+}
+
+int action_create(const char *time_str, const char *after_id)
 {
     if (store_ensure_base() < 0)
     {
@@ -169,13 +226,10 @@ int action_create(const char *time_str)
         return 1;
     }
 
-    char errbuf[256];
     time_t exec_at;
-    if (timefmt_parse_time(time_str, &exec_at, errbuf, sizeof(errbuf)) < 0)
-    {
-        fprintf(stderr, "Error: %s\n", errbuf);
+    char dep[64];
+    if (parse_trigger(time_str, after_id, &exec_at, dep, sizeof(dep)) < 0)
         return 1;
-    }
 
     time_t now = time(NULL);
 
@@ -186,7 +240,7 @@ int action_create(const char *time_str)
         return 1;
     }
 
-    print_task_header(exec_at, now, cwd);
+    print_task_header(exec_at, dep, now, cwd);
 
     strvec *cmds = NULL;
     if (read_commands(&cmds) < 0)
@@ -202,7 +256,7 @@ int action_create(const char *time_str)
         return 1;
     }
 
-    int rc = spawn_task(exec_at, now, cwd, cmds);
+    int rc = spawn_task(exec_at, dep, now, cwd, cmds);
     strvec_free(&cmds);
     return rc;
 }
@@ -243,7 +297,18 @@ int action_list(int verbose)
         if (have_meta)
         {
             timefmt_format_time(meta.created_at, created, sizeof(created));
-            timefmt_format_time(meta.execute_at, scheduled, sizeof(scheduled));
+            if (meta.after[0])
+            {
+                size_t dep = list_index_of(list, meta.after);
+                if (dep)
+                    snprintf(scheduled, sizeof(scheduled), "after #%zu", dep);
+                else
+                    snprintf(scheduled, sizeof(scheduled), "after #?");
+            }
+            else
+            {
+                timefmt_format_time(meta.execute_at, scheduled, sizeof(scheduled));
+            }
         }
         else
         {
@@ -300,16 +365,25 @@ int action_show(const char *id_input)
     }
     task_status st = store_resolve_status(id);
 
-    char scheduled[64], duration[64], created[64];
-    timefmt_format_time(meta.execute_at, scheduled, sizeof(scheduled));
-    timefmt_format_duration((long)(meta.execute_at - meta.created_at), duration, sizeof(duration));
+    char created[64];
     timefmt_format_time(meta.created_at, created, sizeof(created));
 
     printf("Task: %s\n", meta.id);
     printf("Status:      %s%s%s\n", store_status_color_prefix(st), store_status_name(st),
            store_status_color_suffix());
     printf("Created at:  %s\n", created);
-    printf("Execute at:  %s (%s)\n", scheduled, duration);
+    if (meta.after[0])
+    {
+        printf("Execute at:  after task %s completes\n", meta.after);
+    }
+    else
+    {
+        char scheduled[64], duration[64];
+        timefmt_format_time(meta.execute_at, scheduled, sizeof(scheduled));
+        timefmt_format_duration((long)(meta.execute_at - meta.created_at), duration,
+                                sizeof(duration));
+        printf("Execute at:  %s (%s)\n", scheduled, duration);
+    }
     printf("Working dir: %s\n", meta.cwd);
 
     strvec *cmds = NULL;
@@ -611,11 +685,11 @@ int action_clean(void)
     return 0;
 }
 
-int action_retry(const char *id_input, const char *time_str)
+int action_retry(const char *id_input, const char *time_str, const char *after_id)
 {
-    if (!time_str || !*time_str)
+    if ((!time_str || !*time_str) && !after_id)
     {
-        fprintf(stderr, "Error: --retry requires a time argument (e.g., later --retry %s +0s)\n",
+        fprintf(stderr, "Error: --retry requires a trigger (e.g., later --retry %s +0s)\n",
                 id_input);
         return 1;
     }
@@ -639,11 +713,10 @@ int action_retry(const char *id_input, const char *time_str)
         return 1;
     }
 
-    char errbuf[256];
     time_t exec_at;
-    if (timefmt_parse_time(time_str, &exec_at, errbuf, sizeof(errbuf)) < 0)
+    char dep[64];
+    if (parse_trigger(time_str, after_id, &exec_at, dep, sizeof(dep)) < 0)
     {
-        fprintf(stderr, "Error: %s\n", errbuf);
         strvec_free(&cmds);
         return 1;
     }
@@ -658,12 +731,12 @@ int action_retry(const char *id_input, const char *time_str)
     }
 
     // show the commands
-    print_task_header(exec_at, now, cwd);
+    print_task_header(exec_at, dep, now, cwd);
     printf("Commands:\n");
     for (size_t i = 0; i < cmds->len; ++i)
         printf("  %zu. %s\n", i + 1, cmds->items[i]);
 
-    int rc = spawn_task(exec_at, now, cwd, cmds);
+    int rc = spawn_task(exec_at, dep, now, cwd, cmds);
     strvec_free(&cmds);
     return rc;
 }

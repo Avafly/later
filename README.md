@@ -39,41 +39,48 @@ I wrote `later` because I often need to run things in the background or schedule
 ### Task lifecycle
 
 ```
-     create
-       │
-       ▼
-    ┌─────────┐   exec_at    ┌─────────┐    all ok     ┌───────────┐
-    │ PENDING │ ───────────► │ RUNNING │ ────────────► │ COMPLETED │
-    └─────────┘              └─────────┘               └───────────┘
-       │   ▲                  │   ▲   │  a cmd fails   ┌────────┐
-       │   │                  │   │   └──────────────► │ FAILED │
-  pause│   │resume       pause│   │resume              └────────┘
-       │   │                  │   │                        ▲
-       ▼   │                  ▼   │                        │ daemon dies
-    ┌────────┐               ┌────────┐                    │ (crash/OOM/kill)
-    │ PAUSED │               │ PAUSED │
-    └────────┘               └────────┘
+    create                    create --after
+       │                            │
+       ▼                            ▼
+  ┌─────────┐                  ┌─────────┐
+  │ PENDING │                  │ WAITING │
+  └─────────┘                  └─────────┘
+       │                            │
+       │ exec_at                    │ dependency completed
+       └──────────────┬─────────────┘
+                      ▼
+                 ┌─────────┐    all ok     ┌───────────┐
+                 │ RUNNING │ ────────────► │ COMPLETED │
+                 └─────────┘               └───────────┘
+                      │
+                      │ a cmd fails        ┌────────┐
+                      └──────────────────► │ FAILED │
+                                           └────────┘
 
-  From PENDING/RUNNING/PAUSED:
-       later --cancel ──► CANCELLED
-       daemon dies    ──► FAILED (crash/OOM/kill)
+  From PENDING/WAITING/RUNNING:
+       later --pause               ──► PAUSED (--resume returns to the previous state)
+
+  From PENDING/WAITING/RUNNING/PAUSED:
+       later --cancel              ──► CANCELLED
+       daemon dies                 ──► FAILED (crash/OOM/kill)
+       dependency failed/cancelled ──► FAILED (--after tasks only)
 ```
 
 ## Differences from `at`
 
-| | `later` | `at` |
-|---|---|---|
-| Architecture | No background service, tasks stored as files | Centralized `atd` daemon |
-| Output | `later --log` | Sent via system mail |
-| Crash handling | Task file status and file lock | Lost if `atd` crashes |
-| Cancellation | Cancel pending and running tasks | Cancel pending tasks only |
-| Task visibility | Full lifecycle status (Running, Paused, Failed, ...) | Pending tasks only |
-| Input | Pipe or interactive | Pipe or interactive |
-| Extras | `--retry`, `--pause`/`--resume`, `--clean`, `--purge` | — |
+|                 | `later`                                                      | `at`                      |
+| --------------- | ------------------------------------------------------------ | ------------------------- |
+| Architecture    | No background service, tasks stored as files                 | Centralized `atd` daemon  |
+| Output          | `later --log`                                                | Sent via system mail      |
+| Crash handling  | Task file status and file lock                               | Lost if `atd` crashes     |
+| Cancellation    | Cancel pending and running tasks                             | Cancel pending tasks only |
+| Task visibility | Full lifecycle status (Running, Paused, Failed, ...)         | Pending tasks only        |
+| Input           | Pipe or interactive                                          | Pipe or interactive       |
+| Extras          | `--retry`, `--pause`/`--resume`, `--after`, `--clean`, `--purge` | —                         |
 
 ## Examples
 
-**Background build**
+**Background build with later**
 
 ```bash
 $ later +1m
@@ -81,7 +88,6 @@ Execute at:  2026-02-12 22:20:56 (1m)
 Working dir: /Users/user/Downloads/build
 later> cmake ../opencv-4.x
 later> make -j4
-later> make install DESTDIR=./install
 later>
 Task 1770902509_74290_b1c2 created
 ```
@@ -132,8 +138,18 @@ Working dir: /Users/user/projects/build
 Commands:
   1. cmake ../opencv-4.x
   2. make -j4
-  3. make install DESTDIR=./install
 Task 1771334803_35103_c9d0 created
+```
+
+**Run a task after another**
+
+```bash
+$ later --after 2
+Execute at:  after task 1771334803_35103_c9d0 completes
+Working dir: /Users/user/projects/build
+later> make install DESTDIR=./install
+later>
+Task 1770902571_74301_e5f7 created
 ```
 
 ## Dependencies

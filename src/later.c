@@ -25,6 +25,7 @@ int main(int argc, const char *argv[])
     const char *delete_id = NULL;
     const char *log_id = NULL;
     const char *retry_id = NULL;
+    const char *after_id = NULL;
 
     struct argparse_option options[] = {
         OPT_HELP(),
@@ -37,6 +38,7 @@ int main(int argc, const char *argv[])
         OPT_STRING(0, "resume", &resume_id, "resume a paused task", NULL, 0, 0),
         OPT_STRING(0, "delete", &delete_id, "delete a finished task", NULL, 0, 0),
         OPT_STRING(0, "retry", &retry_id, "rerun an existing task's commands", NULL, 0, 0),
+        OPT_STRING(0, "after", &after_id, "run after another task completes", NULL, 0, 0),
         OPT_BOOLEAN(0, "clean", &clean_flag, "remove all finished tasks", NULL, 0, 0),
         OPT_BOOLEAN(0, "purge", &purge_flag, "cancel all tasks and erase the data dir", NULL, 0, 0),
         OPT_BOOLEAN(0, "verbose", &verbose_flag, "show detailed output", NULL, 0, 0),
@@ -49,7 +51,7 @@ int main(int argc, const char *argv[])
 
     if (version_flag)
     {
-        printf("later 0.2.0\n");
+        printf("later 0.3.0\n");
         return 0;
     }
     if (list_flag)
@@ -71,10 +73,10 @@ int main(int argc, const char *argv[])
     if (purge_flag)
         return action_purge();
     if (retry_id)
-        return action_retry(retry_id, argc >= 1 ? argv[0] : NULL);
+        return action_retry(retry_id, argc >= 1 ? argv[0] : NULL, after_id);
 
-    if (argc >= 1)
-        return action_create(argv[0]);
+    if (after_id || argc >= 1)
+        return action_create(argc >= 1 ? argv[0] : NULL, after_id);
 
     argparse_usage(&ap);
 
