@@ -129,20 +129,21 @@ void daemon_run(task_meta meta, char *const *cmds, size_t ncmds, int ready_fd)
     write_all(ready_fd, "k", 1);
     close(ready_fd);
 
-    if (meta.after[0])
+    if (meta.wait_for[0])
     {
         store_create_marker(meta.id, "waiting");
 
         char buf[64];
         timefmt_format_time(time(NULL), buf, sizeof(buf));
-        printf("[%s] Waiting for task %s\n", buf, meta.after);
+        printf("[%s] Waiting for task %s to %s\n", buf, meta.wait_for,
+               meta.wait_require ? "complete" : "end");
         fflush(stdout);
 
-        task_status dep = store_wait_task(meta.after);
-        if (dep != STATUS_COMPLETED)
+        task_status dep = store_wait_task(meta.wait_for);
+        if (meta.wait_require && dep != STATUS_COMPLETED)
         {
             char msg[128];
-            snprintf(msg, sizeof(msg), "Dependency %s: %s", meta.after, store_status_name(dep));
+            snprintf(msg, sizeof(msg), "Dependency %s: %s", meta.wait_for, store_status_name(dep));
             fprintf(stderr, "%s\n", msg);
             fflush(stderr);
             mark_failed_and_exit(meta.id, lock_fd, msg);

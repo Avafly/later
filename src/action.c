@@ -16,17 +16,27 @@
 #include <time.h>
 #include <unistd.h>
 
-static void print_task_header(time_t exec_at, const char *dep, time_t now, const char *cwd)
+typedef struct
 {
-    if (dep[0])
+    time_t at;
+    char wait_for[64];
+    int wait_require; /* non-zero: wait_for must complete successfully */
+} trigger;
+
+static void print_task_header(const trigger *t, time_t now, const char *cwd)
+{
+    if (t->wait_for[0])
     {
-        printf("Execute at:  after task %s completes\n", dep);
+        if (t->wait_require)
+            printf("Execute at:  requires task %s to complete\n", t->wait_for);
+        else
+            printf("Execute at:  after task %s ends\n", t->wait_for);
     }
     else
     {
         char scheduled[64], duration[64];
-        timefmt_format_time(exec_at, scheduled, sizeof(scheduled));
-        timefmt_format_duration((long)(exec_at - now), duration, sizeof(duration));
+        timefmt_format_time(t->at, scheduled, sizeof(scheduled));
+        timefmt_format_duration((long)(t->at - now), duration, sizeof(duration));
         printf("Execute at:  %s (%s)\n", scheduled, duration);
     }
     printf("Working dir: %s\n", cwd);
@@ -34,15 +44,15 @@ static void print_task_header(time_t exec_at, const char *dep, time_t now, const
 
 /* Fork the daemon and wait for its readiness signal.
  * Return 0 if the daemon reported success, or 1 on failure. */
-static int spawn_task(time_t exec_at, const char *dep, time_t now, const char *cwd,
-                      const strvec *cmds)
+static int spawn_task(const trigger *t, time_t now, const char *cwd, const strvec *cmds)
 {
     task_meta meta = {0};
     generate_id(meta.id, sizeof(meta.id));
     snprintf(meta.cwd, sizeof(meta.cwd), "%s", cwd);
-    snprintf(meta.after, sizeof(meta.after), "%s", dep);
+    snprintf(meta.wait_for, sizeof(meta.wait_for), "%s", t->wait_for);
+    meta.wait_require = t->wait_require;
     meta.created_at = now;
-    meta.execute_at = dep[0] ? now : exec_at;
+    meta.execute_at = t->wait_for[0] ? now : t->at;
     meta.daemon_pid = -1;
 
     int pipefd[2];
@@ -117,27 +127,27 @@ static int resolve_or_error(const char *input, char *out, size_t n)
     return rc;
 }
 
-static int parse_trigger(const char *time_str, const char *after_id, time_t *exec_at, char *dep,
-                         size_t depn)
+static int parse_trigger(const char *time_str, const char *after_id, const char *require_id,
+                         trigger *out)
 {
-    *exec_at = 0;
-    dep[0] = '\0';
+    memset(out, 0, sizeof(*out));
 
-    if (time_str && after_id)
+    int given = (time_str != NULL) + (after_id != NULL) + (require_id != NULL);
+    if (given > 1)
     {
-        fprintf(stderr, "Error: cannot combine a time with --after\n");
+        fprintf(stderr, "Error: <time>, --after and --require are mutually exclusive\n");
         return -1;
     }
-    if (!time_str && !after_id)
+    if (given == 0)
     {
-        fprintf(stderr, "Error: a time or --after is required\n");
+        fprintf(stderr, "Error: a time, --after or --require is required\n");
         return -1;
     }
 
     if (time_str)
     {
         char errbuf[256];
-        if (timefmt_parse_time(time_str, exec_at, errbuf, sizeof(errbuf)) < 0)
+        if (timefmt_parse_time(time_str, &out->at, errbuf, sizeof(errbuf)) < 0)
         {
             fprintf(stderr, "Error: %s\n", errbuf);
             return -1;
@@ -145,14 +155,19 @@ static int parse_trigger(const char *time_str, const char *after_id, time_t *exe
         return 0;
     }
 
-    if (resolve_or_error(after_id, dep, depn) < 0)
+    if (resolve_or_error(require_id ? require_id : after_id, out->wait_for,
+                         sizeof(out->wait_for)) < 0)
         return -1;
+    out->wait_require = (require_id != NULL);
 
-    task_status st = store_resolve_status(dep);
-    if (st != STATUS_COMPLETED && store_status_is_final(st))
+    if (out->wait_require)
     {
-        fprintf(stderr, "Error: task %s is already %s\n", dep, store_status_name(st));
-        return -1;
+        task_status st = store_resolve_status(out->wait_for);
+        if (st != STATUS_COMPLETED && store_status_is_final(st))
+        {
+            fprintf(stderr, "Error: task %s is already %s\n", out->wait_for, store_status_name(st));
+            return -1;
+        }
     }
     return 0;
 }
@@ -218,7 +233,7 @@ static size_t list_index_of(const strvec *list, const char *id)
     return 0;
 }
 
-int action_create(const char *time_str, const char *after_id)
+int action_create(const char *time_str, const char *after_id, const char *require_id)
 {
     if (store_ensure_base() < 0)
     {
@@ -226,9 +241,8 @@ int action_create(const char *time_str, const char *after_id)
         return 1;
     }
 
-    time_t exec_at;
-    char dep[64];
-    if (parse_trigger(time_str, after_id, &exec_at, dep, sizeof(dep)) < 0)
+    trigger t;
+    if (parse_trigger(time_str, after_id, require_id, &t) < 0)
         return 1;
 
     time_t now = time(NULL);
@@ -240,7 +254,7 @@ int action_create(const char *time_str, const char *after_id)
         return 1;
     }
 
-    print_task_header(exec_at, dep, now, cwd);
+    print_task_header(&t, now, cwd);
 
     strvec *cmds = NULL;
     if (read_commands(&cmds) < 0)
@@ -256,7 +270,7 @@ int action_create(const char *time_str, const char *after_id)
         return 1;
     }
 
-    int rc = spawn_task(exec_at, dep, now, cwd, cmds);
+    int rc = spawn_task(&t, now, cwd, cmds);
     strvec_free(&cmds);
     return rc;
 }
@@ -303,13 +317,14 @@ int action_list(int verbose)
         if (have_meta)
         {
             timefmt_format_time(meta.created_at, created, sizeof(created));
-            if (meta.after[0])
+            if (meta.wait_for[0])
             {
-                size_t dep = list_index_of(list, meta.after);
+                size_t dep = list_index_of(list, meta.wait_for);
+                const char *kind = meta.wait_require ? "require" : "after";
                 if (dep)
-                    snprintf(scheduled, sizeof(scheduled), "after #%zu", dep);
+                    snprintf(scheduled, sizeof(scheduled), "%s #%zu", kind, dep);
                 else
-                    snprintf(scheduled, sizeof(scheduled), "after #?");
+                    snprintf(scheduled, sizeof(scheduled), "%s #?", kind);
             }
             else
             {
@@ -378,9 +393,12 @@ int action_show(const char *id_input)
     printf("Status:      %s%s%s\n", store_status_color_prefix(st), store_status_name(st),
            store_status_color_suffix());
     printf("Created at:  %s\n", created);
-    if (meta.after[0])
+    if (meta.wait_for[0])
     {
-        printf("Execute at:  after task %s completes\n", meta.after);
+        if (meta.wait_require)
+            printf("Execute at:  requires task %s to complete\n", meta.wait_for);
+        else
+            printf("Execute at:  after task %s ends\n", meta.wait_for);
     }
     else
     {
@@ -691,9 +709,10 @@ int action_clean(void)
     return 0;
 }
 
-int action_retry(const char *id_input, const char *time_str, const char *after_id)
+int action_retry(const char *id_input, const char *time_str, const char *after_id,
+                 const char *require_id)
 {
-    if ((!time_str || !*time_str) && !after_id)
+    if ((!time_str || !*time_str) && !after_id && !require_id)
     {
         fprintf(stderr, "Error: --retry requires a trigger (e.g., later --retry %s +0s)\n",
                 id_input);
@@ -719,9 +738,8 @@ int action_retry(const char *id_input, const char *time_str, const char *after_i
         return 1;
     }
 
-    time_t exec_at;
-    char dep[64];
-    if (parse_trigger(time_str, after_id, &exec_at, dep, sizeof(dep)) < 0)
+    trigger t;
+    if (parse_trigger(time_str, after_id, require_id, &t) < 0)
     {
         strvec_free(&cmds);
         return 1;
@@ -737,12 +755,12 @@ int action_retry(const char *id_input, const char *time_str, const char *after_i
     }
 
     // show the commands
-    print_task_header(exec_at, dep, now, cwd);
+    print_task_header(&t, now, cwd);
     printf("Commands:\n");
     for (size_t i = 0; i < cmds->len; ++i)
         printf("  %zu. %s\n", i + 1, cmds->items[i]);
 
-    int rc = spawn_task(exec_at, dep, now, cwd, cmds);
+    int rc = spawn_task(&t, now, cwd, cmds);
     strvec_free(&cmds);
     return rc;
 }

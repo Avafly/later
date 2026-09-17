@@ -211,7 +211,8 @@ int store_write_meta(const task_meta *meta)
     fprintf(f, "created_at=%lld\n", (long long)meta->created_at);
     fprintf(f, "execute_at=%lld\n", (long long)meta->execute_at);
     fprintf(f, "daemon_pid=%lld\n", (long long)meta->daemon_pid);
-    fprintf(f, "after=%s\n", meta->after);
+    fprintf(f, "wait_for=%s\n", meta->wait_for);
+    fprintf(f, "wait_require=%d\n", meta->wait_require);
     int werr = ferror(f);
     if (fflush(f) != 0 || fsync(fileno(f)) != 0)
         werr = 1;
@@ -256,8 +257,10 @@ int store_read_meta(const char *id, task_meta *meta)
             meta->execute_at = (time_t)strtoll(v, NULL, 10);
         else if (strcmp(k, "daemon_pid") == 0)
             meta->daemon_pid = (pid_t)strtoll(v, NULL, 10);
-        else if (strcmp(k, "after") == 0)
-            snprintf(meta->after, sizeof(meta->after), "%s", v);
+        else if (strcmp(k, "wait_for") == 0)
+            snprintf(meta->wait_for, sizeof(meta->wait_for), "%s", v);
+        else if (strcmp(k, "wait_require") == 0)
+            meta->wait_require = (int)strtoll(v, NULL, 10);
     }
     int err = ferror(f);
     fclose(f);

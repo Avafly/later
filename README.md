@@ -39,14 +39,14 @@ I wrote `later` because I often need to run things in the background or schedule
 ### Task lifecycle
 
 ```
-    create                    create --after
+    create               create --after/--require
        │                            │
        ▼                            ▼
   ┌─────────┐                  ┌─────────┐
   │ PENDING │                  │ WAITING │
   └─────────┘                  └─────────┘
        │                            │
-       │ exec_at                    │ dependency completed
+       │ exec_at                    │ waited-for task ended
        └──────────────┬─────────────┘
                       ▼
                  ┌─────────┐    all ok     ┌───────────┐
@@ -58,12 +58,14 @@ I wrote `later` because I often need to run things in the background or schedule
                                            └────────┘
 
   From PENDING/WAITING/RUNNING:
-       later --pause               ──► PAUSED (--resume returns to the previous state)
+       later --pause  ──► PAUSED (--resume returns to the previous state)
 
   From PENDING/WAITING/RUNNING/PAUSED:
-       later --cancel              ──► CANCELLED
-       daemon dies                 ──► FAILED (crash/OOM/kill)
-       dependency failed/cancelled ──► FAILED (--after tasks only)
+       later --cancel ──► CANCELLED
+       daemon dies    ──► FAILED (crash/OOM/kill)
+
+  From WAITING with --require:
+       the required task failed or was cancelled ──► FAILED
 ```
 
 ## Differences from `at`
@@ -76,7 +78,7 @@ I wrote `later` because I often need to run things in the background or schedule
 | Cancellation    | Cancel pending and running tasks                             | Cancel pending tasks only |
 | Task visibility | Full lifecycle status (Running, Paused, Failed, ...)         | Pending tasks only        |
 | Input           | Pipe or interactive                                          | Pipe or interactive       |
-| Extras          | `--retry`, `--pause`/`--resume`, `--after`, `--clean`, `--purge` | —                         |
+| Extras          | `--retry`, `--pause`/`--resume`, `--after`, `--require`,<br>`--clean`, `--purge` | —     |
 
 ## Examples
 
@@ -87,7 +89,7 @@ $ later +1m
 Execute at:  2026-02-12 22:20:56 (1m)
 Working dir: /Users/user/Downloads/build
 later> cmake ../opencv-4.x
-later> make -j4
+later> cmake --build build -j4
 later>
 Task 1770902509_74290_b1c2 created
 ```
@@ -137,19 +139,30 @@ Execute at:  2026-02-17 22:26:43 (0s)
 Working dir: /Users/user/projects/build
 Commands:
   1. cmake ../opencv-4.x
-  2. make -j4
+  2. cmake --build build -j4
 Task 1771334803_35103_c9d0 created
 ```
 
-**Run a task after another**
+**Run a task after another task ends**
 
 ```bash
 $ later --after 2
-Execute at:  after task 1771334803_35103_c9d0 completes
+Execute at:  after task 1771334803_35103_c9d0 ends
 Working dir: /Users/user/projects/build
-later> make install DESTDIR=./install
+later> DESTDIR=./install cmake --install build
 later>
 Task 1770902571_74301_e5f7 created
+```
+
+**Run a task after another task completes**
+
+```bash
+$ later --require 3
+Execute at:  requires task 1770902571_74301_e5f7 to complete
+Working dir: /Users/user/projects/build
+later> cmake --build build --target clean
+later>
+Task 1789715123_29892_1bf8 created
 ```
 
 ## Dependencies

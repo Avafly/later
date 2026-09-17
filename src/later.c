@@ -26,6 +26,7 @@ int main(int argc, const char *argv[])
     const char *log_id = NULL;
     const char *retry_id = NULL;
     const char *after_id = NULL;
+    const char *require_id = NULL;
 
     struct argparse_option options[] = {
         OPT_HELP(),
@@ -38,7 +39,9 @@ int main(int argc, const char *argv[])
         OPT_STRING(0, "resume", &resume_id, "resume a paused task", NULL, 0, 0),
         OPT_STRING(0, "delete", &delete_id, "delete a finished task", NULL, 0, 0),
         OPT_STRING(0, "retry", &retry_id, "rerun an existing task's commands", NULL, 0, 0),
-        OPT_STRING(0, "after", &after_id, "run after another task completes", NULL, 0, 0),
+        OPT_STRING(0, "after", &after_id, "run after another task ends", NULL, 0, 0),
+        OPT_STRING(0, "require", &require_id,
+                    "run after another task completes successfully", NULL, 0, 0),
         OPT_BOOLEAN(0, "clean", &clean_flag, "remove all finished tasks", NULL, 0, 0),
         OPT_BOOLEAN(0, "purge", &purge_flag, "cancel all tasks and erase the data dir", NULL, 0, 0),
         OPT_BOOLEAN(0, "verbose", &verbose_flag, "show detailed output", NULL, 0, 0),
@@ -57,15 +60,15 @@ int main(int argc, const char *argv[])
         fprintf(stderr, "Error: only one action at a time\n");
         return 1;
     }
-    if (actions > 0 && !retry_id && (argc >= 1 || after_id))
+    if (actions > 0 && !retry_id && (argc >= 1 || after_id || require_id))
     {
-        fprintf(stderr, "Error: a time and --after only apply when creating a task\n");
+        fprintf(stderr, "Error: a time, --after and --require only apply when creating a task\n");
         return 1;
     }
 
     if (version_flag)
     {
-        printf("later 0.3.0\n");
+        printf("later 0.3.1\n");
         return 0;
     }
     if (list_flag)
@@ -87,10 +90,10 @@ int main(int argc, const char *argv[])
     if (purge_flag)
         return action_purge();
     if (retry_id)
-        return action_retry(retry_id, argc >= 1 ? argv[0] : NULL, after_id);
+        return action_retry(retry_id, argc >= 1 ? argv[0] : NULL, after_id, require_id);
 
-    if (after_id || argc >= 1)
-        return action_create(argc >= 1 ? argv[0] : NULL, after_id);
+    if (after_id || require_id || argc >= 1)
+        return action_create(argc >= 1 ? argv[0] : NULL, after_id, require_id);
 
     argparse_usage(&ap);
 
