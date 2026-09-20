@@ -372,6 +372,40 @@ int action_list(int verbose)
     return 0;
 }
 
+/* Return 1-based index of the command the daemon last started, or 0 if none is identifiable. */
+static size_t started_command(const char *id, const strvec *cmds)
+{
+    char path[PATH_MAX];
+    if (store_path_in_task(id, "log", path, sizeof(path)) < 0)
+        return 0;
+    FILE *f = fopen(path, "r");
+    if (!f)
+        return 0;
+
+    size_t found = 0;
+    char *line = NULL;
+    size_t cap = 0;
+    ssize_t got;
+    while ((got = getline(&line, &cap, f)) > 0)
+    {
+        if (line[got - 1] == '\n')
+            line[got - 1] = '\0';
+
+        size_t idx, total;
+        int off = 0;
+        char stamp[32];
+        if (sscanf(line, "[%31[^]]] [%zu/%zu] %n", stamp, &idx, &total, &off) != 3 || off == 0)
+            continue;
+        if (total != cmds->len || idx < 1 || idx > cmds->len)
+            continue;
+        if (strcmp(line + off, cmds->items[idx - 1]) == 0)
+            found = idx;
+    }
+    free(line);
+    fclose(f);
+    return found;
+}
+
 int action_show(const char *id_input)
 {
     char id[64];
@@ -413,9 +447,10 @@ int action_show(const char *id_input)
     strvec *cmds = NULL;
     if (store_read_commands(id, &cmds) == 0)
     {
+        size_t cur = (st == STATUS_RUNNING || st == STATUS_PAUSED) ? started_command(id, cmds) : 0;
         printf("Commands:\n");
         for (size_t i = 0; i < cmds->len; ++i)
-            printf("  %zu. %s\n", i + 1, cmds->items[i]);
+            printf("%s%zu. %s\n", (i + 1 == cur) ? "> " : "  ", i + 1, cmds->items[i]);
     }
     strvec_free(&cmds);
 
