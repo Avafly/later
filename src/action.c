@@ -447,7 +447,7 @@ int action_show(const char *id_input)
     strvec *cmds = NULL;
     if (store_read_commands(id, &cmds) == 0)
     {
-        size_t cur = (st == STATUS_RUNNING || st == STATUS_PAUSED) ? started_command(id, cmds) : 0;
+        size_t cur = (st != STATUS_COMPLETED) ? started_command(id, cmds) : 0;
         printf("Commands:\n");
         for (size_t i = 0; i < cmds->len; ++i)
             printf("%s%zu. %s\n", (i + 1 == cur) ? "> " : "  ", i + 1, cmds->items[i]);
