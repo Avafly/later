@@ -659,7 +659,7 @@ int action_delete(const char *id_input)
     return 0;
 }
 
-int action_log(const char *id_input, int verbose)
+int action_log(const char *id_input, int verbose, int follow)
 {
     char id[64];
     if (resolve_or_error(id_input, id, sizeof(id)) < 0)
@@ -687,7 +687,7 @@ int action_log(const char *id_input, int verbose)
     {
         enum
         {
-            TAIL_MAX = 100
+            TAIL_MAX = 50
         };
         char *ring[TAIL_MAX] = {0};
         size_t head = 0, count = 0;
@@ -712,6 +712,23 @@ int action_log(const char *id_input, int verbose)
         }
         for (size_t i = 0; i < TAIL_MAX; ++i)
             free(ring[i]);
+    }
+
+    if (follow)
+    {
+        char buf[4096];
+        size_t r;
+        int alive;
+        do
+        {
+            alive = store_task_group_alive(id);
+            clearerr(f);
+            while ((r = fread(buf, 1, sizeof(buf), f)) > 0)
+                fwrite(buf, 1, r, stdout);
+            fflush(stdout);
+            if (alive)
+                sleep_ms(1000);
+        } while (alive);
     }
     fclose(f);
     return 0;

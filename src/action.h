@@ -8,7 +8,7 @@ int action_cancel(const char *id_input);
 int action_pause(const char *id_input);
 int action_resume(const char *id_input);
 int action_delete(const char *id_input);
-int action_log(const char *id_input, int verbose);
+int action_log(const char *id_input, int verbose, int follow);
 int action_clean(void);
 int action_retry(const char *id_input, const char *time_str, const char *after_id,
                  const char *require_id);

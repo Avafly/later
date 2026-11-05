@@ -24,6 +24,7 @@ int main(int argc, const char *argv[])
     const char *resume_id = NULL;
     const char *delete_id = NULL;
     const char *log_id = NULL;
+    const char *watch_id = NULL;
     const char *retry_id = NULL;
     const char *after_id = NULL;
     const char *require_id = NULL;
@@ -33,6 +34,7 @@ int main(int argc, const char *argv[])
         OPT_BOOLEAN('l', "list", &list_flag, "list all tasks", NULL, 0, 0),
         OPT_STRING('s', "show", &show_id, "show task details", NULL, 0, 0),
         OPT_STRING('L', "log", &log_id, "show task log output", NULL, 0, 0),
+        OPT_STRING(0, "watch", &watch_id, "follow a task's log until it ends", NULL, 0, 0),
         OPT_BOOLEAN(0, "version", &version_flag, "print version and exit", NULL, 0, 0),
         OPT_STRING(0, "cancel", &cancel_id, "cancel a pending/running task", NULL, 0, 0),
         OPT_STRING(0, "pause", &pause_id, "pause a pending/running task", NULL, 0, 0),
@@ -54,7 +56,7 @@ int main(int argc, const char *argv[])
 
     int actions = version_flag + list_flag + clean_flag + purge_flag + (show_id != NULL) +
                   (cancel_id != NULL) + (pause_id != NULL) + (resume_id != NULL) +
-                  (delete_id != NULL) + (log_id != NULL) + (retry_id != NULL);
+                  (delete_id != NULL) + (log_id != NULL) + (watch_id != NULL) + (retry_id != NULL);
     if (actions > 1)
     {
         fprintf(stderr, "Error: only one action at a time\n");
@@ -84,7 +86,9 @@ int main(int argc, const char *argv[])
     if (delete_id)
         return action_delete(delete_id);
     if (log_id)
-        return action_log(log_id, verbose_flag);
+        return action_log(log_id, verbose_flag, 0);
+    if (watch_id)
+        return action_log(watch_id, verbose_flag, 1);
     if (clean_flag)
         return action_clean();
     if (purge_flag)
