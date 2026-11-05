@@ -10,7 +10,7 @@
 
 /*
  * Layout: $XDG_DATA_HOME/later/<id>/ (one directory per task)
- *   meta       immutable, key=value: cwd, created/execute_at, daemon_pid, wait_for, wait_require
+ *   meta       immutable, key=value: cwd, created/execute_at, daemon_pid/sid, wait_for/require
  *   commands   immutable, one shell command per line (no '\n' allowed)
  *   log        stdout + stderr of the task
  *   lock       held by the daemon via flock; release on exit = "daemon gone"
@@ -40,6 +40,7 @@ typedef struct
     time_t created_at;
     time_t execute_at;
     pid_t daemon_pid;
+    pid_t daemon_sid;
     char wait_for[64];
     int wait_require;
 } task_meta;

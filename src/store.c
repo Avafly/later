@@ -120,11 +120,7 @@ static int color_enabled(void)
 static void reap_orphan_group(const char *id)
 {
     task_meta meta;
-    if (store_read_meta(id, &meta) < 0 || meta.daemon_pid <= 1)
-        return;
-    int leader_alive = (kill(meta.daemon_pid, 0) == 0);
-    int group_alive = (kill(-meta.daemon_pid, 0) == 0);
-    if (group_alive && !leader_alive)
+    if (store_task_group_alive(id) && store_read_meta(id, &meta) == 0)
         kill(-meta.daemon_pid, SIGKILL);
 }
 
@@ -211,6 +207,7 @@ int store_write_meta(const task_meta *meta)
     fprintf(f, "created_at=%lld\n", (long long)meta->created_at);
     fprintf(f, "execute_at=%lld\n", (long long)meta->execute_at);
     fprintf(f, "daemon_pid=%lld\n", (long long)meta->daemon_pid);
+    fprintf(f, "daemon_sid=%lld\n", (long long)meta->daemon_sid);
     fprintf(f, "wait_for=%s\n", meta->wait_for);
     fprintf(f, "wait_require=%d\n", meta->wait_require);
     int werr = ferror(f);
@@ -257,6 +254,8 @@ int store_read_meta(const char *id, task_meta *meta)
             meta->execute_at = (time_t)strtoll(v, NULL, 10);
         else if (strcmp(k, "daemon_pid") == 0)
             meta->daemon_pid = (pid_t)strtoll(v, NULL, 10);
+        else if (strcmp(k, "daemon_sid") == 0)
+            meta->daemon_sid = (pid_t)strtoll(v, NULL, 10);
         else if (strcmp(k, "wait_for") == 0)
             snprintf(meta->wait_for, sizeof(meta->wait_for), "%s", v);
         else if (strcmp(k, "wait_require") == 0)
@@ -276,7 +275,8 @@ int store_task_group_alive(const char *id)
         return 0; // group gone
     if (store_is_locked(id))
         return 1;
-    return kill(meta.daemon_pid, 0) != 0;
+    pid_t sid = getsid(meta.daemon_pid);
+    return sid < 0 || sid == meta.daemon_sid;
 }
 
 int store_write_commands(const char *id, char *const *cmds, size_t n)

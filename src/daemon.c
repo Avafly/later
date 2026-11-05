@@ -78,6 +78,7 @@ void daemon_run(task_meta meta, char *const *cmds, size_t ncmds, int ready_fd)
 
     // the real daemon that runs commands
     meta.daemon_pid = getpid();
+    meta.daemon_sid = getsid(0);
 
     // own a process group
     setpgid(0, 0);
