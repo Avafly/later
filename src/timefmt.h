@@ -16,6 +16,8 @@ int timefmt_parse_time(const char *input, time_t *out, char *errbuf, size_t errs
 
 /* "YYYY-MM-DD HH:MM:SS" in local time. */
 void timefmt_format_time(time_t t, char *buf, size_t n);
+/* Inverse of timefmt_format_time; return -1 if s is not in that form. */
+int timefmt_parse_stamp(const char *s, time_t *out);
 
 /* "1h 2m 3s", "0s", or "5m ago" for negative durations. */
 void timefmt_format_duration(long secs, char *buf, size_t n);

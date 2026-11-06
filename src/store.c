@@ -458,6 +458,18 @@ ssize_t store_read_marker(const char *id, const char *name, char *buf, size_t n)
     return (ssize_t)off;
 }
 
+int store_marker_mtime(const char *id, const char *name, time_t *out)
+{
+    char path[PATH_MAX];
+    if (store_path_in_task(id, name, path, sizeof(path)) < 0)
+        return -1;
+    struct stat st;
+    if (stat(path, &st) < 0)
+        return -1;
+    *out = st.st_mtime;
+    return 0;
+}
+
 int store_remove_marker(const char *id, const char *name)
 {
     char path[PATH_MAX];

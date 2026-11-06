@@ -203,6 +203,24 @@ void timefmt_format_time(time_t t, char *buf, size_t n)
     strftime(buf, n, "%Y-%m-%d %H:%M:%S", &tm);
 }
 
+int timefmt_parse_stamp(const char *s, time_t *out)
+{
+    struct tm tm = {0};
+    int consumed = 0;
+    if (sscanf(s, "%d-%d-%d %d:%d:%d%n", &tm.tm_year, &tm.tm_mon, &tm.tm_mday, &tm.tm_hour,
+               &tm.tm_min, &tm.tm_sec, &consumed) != 6 ||
+        s[consumed] != '\0')
+        return -1;
+    tm.tm_year -= 1900;
+    tm.tm_mon -= 1;
+    tm.tm_isdst = -1;
+    time_t t = mktime(&tm);
+    if (t == (time_t)-1)
+        return -1;
+    *out = t;
+    return 0;
+}
+
 void timefmt_format_duration(long secs, char *buf, size_t n)
 {
     if (secs == 0)

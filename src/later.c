@@ -34,8 +34,8 @@ int main(int argc, const char *argv[])
         OPT_BOOLEAN('l', "list", &list_flag, "list all tasks", NULL, 0, 0),
         OPT_STRING('s', "show", &show_id, "show task details", NULL, 0, 0),
         OPT_STRING('L', "log", &log_id, "show task log output", NULL, 0, 0),
-        OPT_STRING(0, "watch", &watch_id, "follow a task's log until it ends", NULL, 0, 0),
         OPT_BOOLEAN(0, "version", &version_flag, "print version and exit", NULL, 0, 0),
+        OPT_STRING(0, "watch", &watch_id, "follow a task's log until it ends", NULL, 0, 0),
         OPT_STRING(0, "cancel", &cancel_id, "cancel a pending/running task", NULL, 0, 0),
         OPT_STRING(0, "pause", &pause_id, "pause a pending/running task", NULL, 0, 0),
         OPT_STRING(0, "resume", &resume_id, "resume a paused task", NULL, 0, 0),
@@ -70,7 +70,7 @@ int main(int argc, const char *argv[])
 
     if (version_flag)
     {
-        printf("later 0.3.2\n");
+        printf("later 0.3.3\n");
         return 0;
     }
     if (list_flag)

@@ -69,6 +69,7 @@ int store_create_marker(const char *id, const char *name);
 int store_create_marker_with_content(const char *id, const char *name, const char *content);
 int store_has_marker(const char *id, const char *name);
 ssize_t store_read_marker(const char *id, const char *name, char *buf, size_t n);
+int store_marker_mtime(const char *id, const char *name, time_t *out);
 int store_remove_marker(const char *id, const char *name);
 
 /* Allocate *list and fill it with task ids sorted by created_at. */

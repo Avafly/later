@@ -373,7 +373,7 @@ int action_list(int verbose)
 }
 
 /* Return 1-based index of the command the daemon last started, or 0 if none is identifiable. */
-static size_t started_command(const char *id, const strvec *cmds)
+static size_t started_command(const char *id, const strvec *cmds, time_t *starts)
 {
     char path[PATH_MAX];
     if (store_path_in_task(id, "log", path, sizeof(path)) < 0)
@@ -399,11 +399,22 @@ static size_t started_command(const char *id, const strvec *cmds)
         if (total != cmds->len || idx < 1 || idx > cmds->len)
             continue;
         if (strcmp(line + off, cmds->items[idx - 1]) == 0)
+        {
             found = idx;
+            if (starts)
+                timefmt_parse_stamp(stamp, &starts[idx - 1]);
+        }
     }
     free(line);
     fclose(f);
     return found;
+}
+
+static void print_duration(long secs)
+{
+    char buf[64];
+    timefmt_format_duration(secs, buf, sizeof(buf));
+    printf(" (%s)", buf);
 }
 
 int action_show(const char *id_input)
@@ -419,13 +430,22 @@ int action_show(const char *id_input)
         return 1;
     }
     task_status st = store_resolve_status(id);
+    time_t now = time(NULL);
+    time_t start = 0, end = 0;
+    int started = store_marker_mtime(id, "running", &start) == 0;
+    int ended = store_marker_mtime(id, "done", &end) == 0 ||
+                store_marker_mtime(id, "error", &end) == 0 ||
+                store_marker_mtime(id, "cancel", &end) == 0;
 
     char created[64];
     timefmt_format_time(meta.created_at, created, sizeof(created));
 
     printf("Task: %s\n", meta.id);
-    printf("Status:      %s%s%s\n", store_status_color_prefix(st), store_status_name(st),
+    printf("Status:      %s%s%s", store_status_color_prefix(st), store_status_name(st),
            store_status_color_suffix());
+    if (started && !store_status_is_final(st))
+        print_duration((long)(now - start));
+    printf("\n");
     printf("Created at:  %s\n", created);
     if (meta.wait_for[0])
     {
@@ -442,15 +462,35 @@ int action_show(const char *id_input)
                                 sizeof(duration));
         printf("Execute at:  %s (%s)\n", scheduled, duration);
     }
+    if (ended)
+    {
+        char when[64];
+        timefmt_format_time(end, when, sizeof(when));
+        printf("Ended at:    %s", when);
+        if (started)
+            print_duration((long)(end - start));
+        printf("\n");
+    }
     printf("Working dir: %s\n", meta.cwd);
 
     strvec *cmds = NULL;
     if (store_read_commands(id, &cmds) == 0)
     {
-        size_t cur = (st != STATUS_COMPLETED) ? started_command(id, cmds) : 0;
+        time_t *starts = calloc(cmds->len + 1, sizeof(*starts));
+        size_t last = started_command(id, cmds, starts);
+        size_t cur = (st != STATUS_COMPLETED) ? last : 0;
+        time_t last_end = ended ? end : (store_status_is_final(st) ? 0 : now);
         printf("Commands:\n");
         for (size_t i = 0; i < cmds->len; ++i)
-            printf("%s%zu. %s\n", (i + 1 == cur) ? "> " : "  ", i + 1, cmds->items[i]);
+        {
+            printf("%s%zu. %s", (i + 1 == cur) ? "> " : "  ", i + 1, cmds->items[i]);
+            time_t s = starts ? starts[i] : 0;
+            time_t e = (i + 1 == last) ? last_end : (starts ? starts[i + 1] : 0);
+            if (s && e)
+                print_duration((long)(e - s));
+            printf("\n");
+        }
+        free(starts);
     }
     strvec_free(&cmds);
 
