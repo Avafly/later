@@ -257,11 +257,18 @@ int action_create(const char *time_str, const char *after_id, const char *requir
     print_task_header(&t, now, cwd);
 
     strvec *cmds = NULL;
-    if (read_commands(&cmds) < 0)
+    int rc = read_commands(&cmds);
+    if (rc < 0)
     {
         fprintf(stderr, "Error: failed to read commands\n");
         strvec_free(&cmds);
         return 1;
+    }
+    if (rc > 0)
+    {
+        fprintf(stderr, "Cancelled\n");
+        strvec_free(&cmds);
+        return 130;
     }
     if (cmds == NULL || cmds->len == 0)
     {
@@ -270,7 +277,7 @@ int action_create(const char *time_str, const char *after_id, const char *requir
         return 1;
     }
 
-    int rc = spawn_task(&t, now, cwd, cmds);
+    rc = spawn_task(&t, now, cwd, cmds);
     strvec_free(&cmds);
     return rc;
 }

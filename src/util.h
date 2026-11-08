@@ -12,7 +12,7 @@
 int ensure_dir(const char *path, mode_t mode);
 
 /* Read commands from stdin: tty -> linenoise prompt, pipe -> one line each.
- * Return 0 on success (may be empty), -1 on OOM. */
+ * Return 0 on success (may be empty), 1 if the user pressed Ctrl-C, -1 on OOM. */
 int read_commands(strvec **cmds);
 
 /* "<sec>_<pid>_<rand4hex>"; buf must be >= 64 bytes. */

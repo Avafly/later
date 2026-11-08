@@ -216,9 +216,14 @@ int read_commands(strvec **cmds)
 
     while (1)
     {
+        errno = 0;
         char *line = linenoise(prompt);
         if (!line)
+        {
+            if (is_tty && errno == EAGAIN)
+                return 1;
             break;
+        }
 
         size_t n = strlen(line);
         if (n > 0 && line[n - 1] == '\r')
