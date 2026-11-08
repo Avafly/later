@@ -234,7 +234,17 @@ int read_commands(strvec **cmds)
 
         if (is_tty)
             linenoiseHistoryAdd(line);
-        int rc = strvec_push(v, line);
+        int rc = 0;
+        char *p = line;
+        while (rc == 0 && p)
+        {
+            char *nl = strchr(p, '\n');
+            if (nl)
+                *nl = '\0';
+            if (*p)
+                rc = strvec_push(v, p);
+            p = nl ? nl + 1 : NULL;
+        }
         linenoiseFree(line);
 
         if (rc < 0)
